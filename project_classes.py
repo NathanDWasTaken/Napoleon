@@ -152,7 +152,7 @@ class Grid:
             return score
         else:
             print("Could not add wall")
-            return False
+            return None
 
 
 
@@ -260,10 +260,10 @@ class Players:
         self.counter = 0
         self.system = coord_system
 
-    def add_player(self, colour, username):
+    def add_player(self, username):
         player_number = len(self.players) + 1
 
-        self.players.append(Player(colour, username, self.grid, player_number))
+        self.players.append(Player(username, self.grid, player_number))
 
     def next_player(self):
         return self.players[(self.counter + 1) % len(self.players)]
@@ -311,8 +311,7 @@ class Players:
 
 
 class Player:
-    def __init__(self, colour, username, grid, number):
-        self.colour = colour
+    def __init__(self, username, grid, number):
         self.username = username
         self.grid = grid
         self.points = 0
