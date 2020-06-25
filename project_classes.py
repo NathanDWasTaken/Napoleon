@@ -13,7 +13,7 @@ def subtract_2_addresses(address2, address1, operation = "-"):
     return tuple(difference)
     
 # returns either the variation of coords when going a certain direction, or returns a direction for a certain variation in coords
-# when going east -> x + 1, when x + 1 -> east
+# east -> x + 1 | x + 1 -> east
 variation_direction = {'n': (0, -1), (0, -1): 'n', 'e': (1, 0), (1, 0): 'e', 's': (0, 1), (0, 1): 's', 'w': (-1, 0), (-1, 0): 'w'}
 opposite_direction = {"n" : "s", "e" : "w", "s" : "n", "w" : "e"}
 
@@ -215,43 +215,40 @@ class Grid:
             self.flood_fill(w)
 
     def print_board(self):
-        for y in self.grid:
-            def print_horizontal():
-                row = ""
-                for tile in y:
-                    tile_n = tile.walls["n"]
-                    if tile_n != None:
-                        row += " ---"
-                    else:
-                        row += "    "
-                print(row)
+        def print_horizontal(bottom = False):
+            row = ""
+            for tile in y:
+                tile_n = tile.walls["n"]
+                if tile_n != None or bottom:
+                    row += " ———"
+                else:
+                    row += "    "
+            print(row)
+            
+        def print_vertical():
+            row = "|"
+            for tile in y:
+                if tile.out_of_game:
+                    captured = tile.out_of_game
+                else:
+                    captured = 0
                 
-            def print_vertical():
-                row = "|"
-                for tile in y:
-                    if tile.out_of_game:
-                        captured = tile.out_of_game
-                    else:
-                        captured = 0
-                    
-                    tile_e = tile.walls["e"]
-                    if tile_e != None:
-                        row += f" {captured} |"
-                    else:
-                        row += f" {captured}  "
-                print(row)
+                tile_e = tile.walls["e"]
+                if tile_e != None:
+                    row += f" {captured} |"
+                else:
+                    row += f" {captured}  "
+            print(row)
 
+        for y in self.grid:
             print_horizontal()
             print_vertical()
             if y == self.grid[self.height - 1]:
-                row = ""
-                for x in range(self.width):
-                    row += " ---"
-                print(row)
+                print_horizontal(bottom = True)
 
 
 class Players:
-    def __init__(self, grid = None, coord_system = "math"):
+    def __init__(self, grid = None, coord_system = "normal"):
         """takes an optional grid instance (in case one doesn't wannt 8x8) and the coordinate system, math or programming. In 'math' the top left tile is 1 1, for 'programming' this is 0 0"""
         self.players = []
         if grid == None:
@@ -270,7 +267,7 @@ class Players:
 
     def input_to_coords(self, entry):
         data = entry.split()
-        if self.system == "math":
+        if self.system == "normal":
             return (int(data[0]) - 1, int(data[1]) - 1), data[2]
 
         elif self.system == "programming":
@@ -303,7 +300,7 @@ class Players:
                     self.grid.print_board()
                     print("Scores:")
                     for player in self.players:
-                        print(f"- {player.username}: {player.points}")
+                        print(f"- {player.username} ({current_player.number}): {player.points}")
                     break
                 elif score != None:
                     current_player.points += score
