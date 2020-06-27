@@ -1,20 +1,32 @@
-def subtract_2_addresses(address2, address1, operation = "-"):
+# pos is a coordinate in the form (x, y)
+
+
+
+def subtract_2_addresses(coord1, coord2, operation="-"):
+    """do operation element wise between coord1 and coord2"""
     difference = []
 
-    zip_object = zip(address1, address2)
-    for list1_i, list2_i in zip_object:
+    for element2, element1 in zip(coord2, coord1):
         if operation == "-":
-            result = list1_i - list2_i
+            result = element2 - element1
         elif operation == "+":
-            result = list1_i + list2_i
+            result = element2 + element1
 
         difference.append(result)
 
     return tuple(difference)
-    
-# returns either the variation of coords when going a certain direction, or returns a direction for a certain variation in coords
+
+# returns either:
+# - the variation of coordinate when going a certain direction
+# - the direction for a certain variation in coords
+
 # east -> x + 1 | x + 1 -> east
-variation_direction = {'n': (0, -1), (0, -1): 'n', 'e': (1, 0), (1, 0): 'e', 's': (0, 1), (0, 1): 's', 'w': (-1, 0), (-1, 0): 'w'}
+variation_direction = {
+    "n": (0, -1), (0, -1): "n", 
+    "e": (1, 0), (1, 0): "e", 
+    "s": (0, 1), (0, 1): "s", 
+    "w": (-1, 0), (-1, 0): "w"}
+    
 opposite_direction = {"n" : "s", "e" : "w", "s" : "n", "w" : "e"}
 
 class Tile:
@@ -39,7 +51,7 @@ class Wall(Border):
 
 
 class Grid:
-    def __init__(self, width = 8, height = 8):
+    def __init__(self, width=8, height=8):
         if 1 < width and 1 < height:
             self.width, self.height = width, height
             self.total_tiles = width * height
@@ -65,54 +77,58 @@ class Grid:
         else:
             print("Both grid dimensions have to be bigger than 1")
 
-    def add_wall(self, address1, direction = None, address2 = None):
+    def add_wall(self, coord1, direction = None, coord2 = None):
         """adds a wall to the tile object if it doesn't have one yet"""
-        if not self.is_valid_address(address1):
-            print("Address 1 is invalid:", address1)
-            return
-        elif address2 != None and not self.is_valid_address(address2):
-            print("Address 2 is invalid:", address2)
+
+        if not self.is_valid_position(coord1):
+            print("Address 1 is invalid:", coord1)
             return
 
-        if direction == None and address2 != None:
-            print("direction is None and address2 is not None")
+        if coord2 != None:
+            if not self.is_valid_position(coord2):
+                print("Address 2 is invalid:", coord2)
+                return
+
             # we need to figure out direction when going from addr1 to addr2
-            variation = subtract_2_addresses(address1, address2)
-            direction = variation_direction[variation]
+            pos_variation = subtract_2_addresses(coord1, coord2)
+            direction = variation_direction[pos_variation]
+
 
         if direction != None:
             variation = variation_direction[direction]
 
-            if address2 == None:
+            if coord2 == None:
                 # we can figure out coords of addr2 if we know addr1 and the direction it wants to go
-                address2 = subtract_2_addresses(address1, variation, operation = "+")
-                if not self.is_valid_address(address2):
+                coord2 = subtract_2_addresses(coord1, variation, operation="+")
+                if not self.is_valid_position(coord2):
                     print("Address 2 is not Valid")
                     return
 
-            tile1 = self.get_tile(address1)
-            tile2 = self.get_tile(address2)
+            tile1 = self.get_tile(coord1)
+            tile2 = self.get_tile(coord2)
 
-            if not isinstance(tile1.walls[direction], Wall) or not isinstance(tile2.walls[opposite_direction[direction]], Wall):
-                wall = Wall(tile1, tile2)
-
+            wall = Wall(tile1, tile2)
+            if not isinstance(tile1.walls[direction], Wall):
                 tile1.walls[direction] = wall
+            
+            if not isinstance(tile2.walls[opposite_direction[direction]], Wall):
                 tile2.walls[opposite_direction[direction]] = wall
 
-                return True
+            return True
 
-    def make_move(self, address1, address2 = None, direction = None, player_number = 1):
+    def make_move(self, coord1, coord2=None, direction=None, player_number=1):
         """takes in address and direction, adds a wall there and checks whether that wall cut off any square"""
-        wall_placed_successfully = self.add_wall(address1, address2 = address2, direction = direction)
+        wall_placed_successfully = self.add_wall(coord1, coord2 = coord2, direction = direction)
 
         if wall_placed_successfully:
-            self.flood_fill(address1)
+            self.flood_fill(coord1)
+
             non_captured_tiles = []
             captured_tiles = []
 
             score = 0
 
-            for tile in self.yield_tiles():
+            for tile in self.get_all_tiles():
                 if not tile.out_of_game:
                     if tile.captured == True:
                         captured_tiles.append(tile)
@@ -126,11 +142,11 @@ class Grid:
                 captured_tiles[0].out_of_game = player_number
                 return non_captured_tiles[0]
 
+            # We make sure that the amount of captured tiles isn't the same as the amount left in the game, since
             if captured_len != self.tiles_left:
-                # if tiles captured is more than half, it means that the non_captured_tiles are the least and get taken
+                # we only take away the smaller group of tiles
                 if captured_len > non_captured_len:
                     for tile in non_captured_tiles:
-                        tile.captured = True
                         tile.out_of_game = player_number
 
                     for tile in captured_tiles:
@@ -142,7 +158,7 @@ class Grid:
                     score = captured_len
 
             else:
-                for tile in self.yield_tiles():
+                for tile in self.get_all_tiles():
                     tile.captured = False
 
             self.tiles_left -= score
@@ -157,23 +173,20 @@ class Grid:
 
 
 
-    def is_valid_address(self, addr):
+    def is_valid_position(self, addr):
         """returns whether the given address is in the grid bounds"""
         if addr != None:
             return 0 <= addr[0] <= self.width - 1 and 0 <= addr[1] <= self.height - 1
 
 
-    def get_tile(self, addr):
+    def get_tile(self, pos):
         """returns the tile object for a given address, if the address is valid"""
-        x, y = addr
-        if self.is_valid_address(addr):
+        x, y = pos
+        if self.is_valid_position(pos):
             return self.grid[y][x]
         
-    def yield_tiles(self, array = None):
-        if array == None:
-            array = self.grid
-
-        for row in array:
+    def get_all_tiles(self):
+        for row in self.grid:
             for tile in row:
                 yield tile
 
@@ -195,39 +208,33 @@ class Grid:
             next_tile = self.get_tile(next_tile)
 
             has_wall = direction_has_wall(direction)
-            return not has_wall and self.is_valid_address((next_tile.x, next_tile.y)) and not next_tile.captured and not next_tile.out_of_game
+            return not has_wall and self.is_valid_position((next_tile.x, next_tile.y)) and not next_tile.captured and not next_tile.out_of_game
 
         self.counter = 0
-        x, y = tile.x, tile.y
+        x, y = addr
 
         n, e, s, w = getSurroundingCoords(x, y)
+        
+        for direction, coord in zip("nesw", (n, e, s, w)):
+            if is_valid_tile(direction, coord):
+                self.flood_fill(coord)
+        
 
-        if is_valid_tile("n", n):
-            self.flood_fill(n)
-
-        if is_valid_tile("e", e):
-            self.flood_fill(e)
-
-        if is_valid_tile("s", s):
-            self.flood_fill(s)
-            
-        if is_valid_tile("w", w):
-            self.flood_fill(w)
 
     def print_board(self):
-        def print_horizontal(bottom = False):
-            row = ""
-            for tile in y:
+        def print_horizontal(row, bottom=False):
+            print_row = ""
+            for tile in row:
                 tile_n = tile.walls["n"]
                 if tile_n != None or bottom:
-                    row += " ———"
+                    print_row += " ———"
                 else:
-                    row += "    "
-            print(row)
+                    print_row += "    "
+            print(print_row)
             
-        def print_vertical():
-            row = "|"
-            for tile in y:
+        def print_vertical(row):
+            print_row = "|"
+            for tile in row:
                 if tile.out_of_game:
                     captured = tile.out_of_game
                 else:
@@ -235,21 +242,24 @@ class Grid:
                 
                 tile_e = tile.walls["e"]
                 if tile_e != None:
-                    row += f" {captured} |"
+                    print_row += f" {captured} |"
                 else:
-                    row += f" {captured}  "
-            print(row)
+                    print_row += f" {captured}  "
+            print(print_row)
 
-        for y in self.grid:
-            print_horizontal()
-            print_vertical()
-            if y == self.grid[self.height - 1]:
-                print_horizontal(bottom = True)
+        for row in self.grid:
+            print_horizontal(row)
+            print_vertical(row)
+        print_horizontal(self.grid[-1], bottom=True)
 
 
-class Players:
-    def __init__(self, grid = None, coord_system = "normal"):
-        """takes an optional grid instance (in case one doesn't wannt 8x8) and the coordinate system, math or programming. In 'math' the top left tile is 1 1, for 'programming' this is 0 0"""
+class Game:
+    def __init__(self, grid=None, coord_system="normal"):
+        """takes an optional grid instance (in case one doesn't wannt 8x8) and the coordinate system, normal or programming. 
+            top left tile's coords:
+                'normal': (1, 1)
+                'programming': (0, 0)
+                """
         self.players = []
         if grid == None:
             grid = Grid()
