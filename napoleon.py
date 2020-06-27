@@ -144,22 +144,19 @@ class Grid:
 
             # We make sure that the amount of captured tiles isn't the same as the amount left in the game, since
             if captured_len != self.tiles_left:
+                score = min(captured_len, non_captured_len)
+
                 # we only take away the smaller group of tiles
                 if captured_len > non_captured_len:
                     for tile in non_captured_tiles:
                         tile.out_of_game = player_number
 
-                    for tile in captured_tiles:
-                        tile.captured = False
-                    score = non_captured_len
                 else:
                     for tile in captured_tiles:
                         tile.out_of_game = player_number
-                    score = captured_len
 
-            else:
-                for tile in self.get_all_tiles():
-                    tile.captured = False
+            for tile in self.get_all_tiles():
+                tile.captured = False
 
             self.tiles_left -= score
 
@@ -275,15 +272,21 @@ class Game:
     def next_player(self):
         return self.players[(self.counter + 1) % len(self.players)]
 
-    def input_to_coords(self, entry):
+    def input_to_coords(self, name, number):
+        entry = input(f"{name} ({number}): ")
+
         data = entry.split()
-        if self.system == "normal":
-            return (int(data[0]) - 1, int(data[1]) - 1), data[2]
+        try:
+            if self.system == "normal":
+                return (int(data[0]) - 1, int(data[1]) - 1), data[2]
 
-        elif self.system == "programming":
-            return (int(data[0]), int(data[1])), data[2]
+            elif self.system == "programming":
+                return (int(data[0]), int(data[1])), data[2]
+                
+        except ValueError:
+            print(f"The input is invalid: {entry}")
+            return self.input_to_coords(name, number)
         
-
 
     def play(self):
         player_number = len(self.players)
@@ -296,7 +299,7 @@ class Game:
             player_rotation = self.counter % player_number
             current_player = self.players[player_rotation]
 
-            addr, direction = self.input_to_coords(input(f"{current_player.username} ({current_player.number}): "))
+            addr, direction = self.input_to_coords(current_player.username, current_player.number)
 
             if direction in ["n", "e", "s", "w"]:
                 score = self.grid.make_move(addr, direction = direction, player_number = current_player.number)
