@@ -1,9 +1,16 @@
-from channels import Group
+import json
+from channels.generic.websocket import WebsocketConsumer
 
+class ChatConsumer(WebsocketConsumer):
+    def connect(self):
+        self.accept()
 
-def ws_connect(message):
-    Group('players').add(message.reply_channel)
+    def disconnect(self, close_code):
+        pass
 
+    def receive(self, message):
+        print(message)
 
-def ws_disconnect(message):
-    Group('players').discard(message.reply_channel)
+        self.send(text_data=json.dumps({
+            'message': message
+        }))
