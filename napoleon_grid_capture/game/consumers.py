@@ -1,16 +1,27 @@
 import json
 from channels.generic.websocket import WebsocketConsumer
+from napoleon import Game, Grid
 
-class ChatConsumer(WebsocketConsumer):
+
+class GameConsumer(WebsocketConsumer):
     def connect(self):
         self.accept()
+        self.game = None
 
     def disconnect(self, close_code):
         pass
 
-    def receive(self, message):
-        print(message)
+    def receive(self, text_data):
+            
+        data = json.loads(text_data)
+        if self.game == None:
+            grid = Grid(width=data["width"], height=data["height"])
+            self.game = Game(grid=grid)
+            return None
+        wall = data['wall']
+        self.game
 
         self.send(text_data=json.dumps({
-            'message': message
+            'player': '',
+            'wall' : wall
         }))

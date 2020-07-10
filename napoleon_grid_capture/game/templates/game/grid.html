@@ -1,5 +1,8 @@
 {% extends "game/base.html" %}
 {% block content %}
+
+{{ game_id|json_script:"game-id" }}
+
 <script type="text/javascript">
     function add_line(x1, y1, x2, y2, id = null, colour = "rgb(105,105,105)", width = 8) {
         var newLine = document.createElementNS('http://www.w3.org/2000/svg','line');
@@ -17,6 +20,29 @@
     }
 
     function createGrid(svg_width, svg_height, columns, rows) {
+        gameSocket.send(JSON.stringify({
+            "width" : columns,
+            "height" : rows
+        }))
+        
+        
+        gameSocket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+
+            const line = document.getElementById(data.wall)
+
+            line.setAttribute("stroke", rgb_to_rgba(players[player_turn_counter].colour, "0,9"))
+            line.setAttribute("stroke-width", "10")
+            line.setAttribute("marked", "true")
+
+            next_player()
+
+            document.getElementById("highlighted").remove()
+            my_turn = false
+        };
+
+
+
         let column_len = svg_width / columns
         let row_len = svg_height / rows
 
@@ -92,11 +118,12 @@
             svg.appendChild(add_line(svg_width, 0, svg_width, svg_height))
     }
 
+    function rgb_to_rgba(rgb, a) {
+        if(rgb.indexOf('a') == -1){
+            return rgb.replace(')', `, ${a})`).replace('rgb', 'rgba');
+        }}
+
     function make_highlight(line_id, player_colour) {
-        function rgb_to_rgba(rgb, a) {
-            if(rgb.indexOf('a') == -1){
-                return rgb.replace(')', `, ${a})`).replace('rgb', 'rgba');
-            }}
         
         const svg = document.getElementById("grid")
 
@@ -114,16 +141,11 @@
 
         highlight.addEventListener('click', function (event) {
             if (line.getAttribute("marked") == "false" && (my_turn || local)) {
-                line.setAttribute("stroke", rgb_to_rgba(player_colour, "0,9"))
-                line.setAttribute("stroke-width", "10")
-                line.setAttribute("marked", "true")
-
-                highlight.remove()
-                my_turn = false
-
+                gameSocket.send(JSON.stringify({
+                'wall': line.id
+                }));
                 make_move()
 
-                socket.send(line.id)
                 console.log(line.id)
             }
         })
@@ -141,8 +163,8 @@
 
 
 
+
 <script type="text/javascript">
-    let socket = new WebSocket("ws://localhost:8000");
 
     var players = []
     var my_turn = true
@@ -164,13 +186,20 @@
         player_turn_counter = (player_turn_counter + 1) % players.length
         if (players[player_turn_counter] == me) {
             my_turn = true
+            make_move()
         }
     }
 
     function make_move() {
-        next_player()
+        
     }
-
-    createGrid(500, 500, 10, 10)
 </script>
+
+<script>
+    const roomName = JSON.parse(document.getElementById('game-id').textContent)
+
+    let gameSocket = new WebSocket(`ws://${window.location.host}/ws/game/${roomName}/`);
+    gameSocket.onopen = function(e) {createGrid(500, 500, 10, 10)}   
+</script>
+
 {% endblock content %}
