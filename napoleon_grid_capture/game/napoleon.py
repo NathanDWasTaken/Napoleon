@@ -1,7 +1,5 @@
 # pos is a coordinate in the form (x, y)
 
-
-
 def subtract_2_addresses(coord1, coord2, operation="-"):
     """do operation element wise between coord1 and coord2"""
     difference = []
@@ -77,51 +75,39 @@ class Grid:
         else:
             print("Both grid dimensions have to be bigger than 1")
 
-    def add_wall(self, coord1, direction = None, coord2 = None):
+    def add_wall(self, coord1, direction):
         """adds a wall to the tile object if it doesn't have one yet"""
 
         if not self.is_valid_position(coord1):
             print("Address 1 is invalid:", coord1)
             return
 
-        if coord2 != None:
-            if not self.is_valid_position(coord2):
-                print("Address 2 is invalid:", coord2)
-                return
+        variation = variation_direction[direction]
 
-            # we need to figure out direction when going from addr1 to addr2
-            pos_variation = subtract_2_addresses(coord1, coord2)
-            direction = variation_direction[pos_variation]
+        # we can figure out coords of addr2 if we know addr1 and the direction it wants to go
+        coord2 = subtract_2_addresses(coord1, variation, operation="+")
+        if not self.is_valid_position(coord2):
+            print("Address 2 is not Valid")
+            return
 
+        tile1 = self.get_tile(coord1)
+        tile2 = self.get_tile(coord2)
 
-        if direction != None:
-            variation = variation_direction[direction]
+        wall = Wall(tile1, tile2)
+        if not isinstance(tile1.walls[direction], Wall):
+            tile1.walls[direction] = wall
+        
+        if not isinstance(tile2.walls[opposite_direction[direction]], Wall):
+            tile2.walls[opposite_direction[direction]] = wall
 
-            if coord2 == None:
-                # we can figure out coords of addr2 if we know addr1 and the direction it wants to go
-                coord2 = subtract_2_addresses(coord1, variation, operation="+")
-                if not self.is_valid_position(coord2):
-                    print("Address 2 is not Valid")
-                    return
+        return True
 
-            tile1 = self.get_tile(coord1)
-            tile2 = self.get_tile(coord2)
-
-            wall = Wall(tile1, tile2)
-            if not isinstance(tile1.walls[direction], Wall):
-                tile1.walls[direction] = wall
-            
-            if not isinstance(tile2.walls[opposite_direction[direction]], Wall):
-                tile2.walls[opposite_direction[direction]] = wall
-
-            return True
-
-    def make_move(self, coord1, coord2=None, direction=None, player_number=1):
+    def make_move(self, coord, direction):
         """takes in address and direction, adds a wall there and checks whether that wall cut off any square"""
-        wall_placed_successfully = self.add_wall(coord1, coord2 = coord2, direction = direction)
+        wall_placed_successfully = self.add_wall(coord, direction)
 
         if wall_placed_successfully:
-            self.flood_fill(coord1)
+            self.flood_fill(coord)
 
             non_captured_tiles = []
             captured_tiles = []
@@ -138,9 +124,19 @@ class Grid:
             captured_len = len(captured_tiles)
             non_captured_len = len(non_captured_tiles)
 
+
             if captured_len == non_captured_len == 1:
-                captured_tiles[0].out_of_game = player_number
-                return non_captured_tiles[0]
+                captured_tiles[0].out_of_game = 1
+                non_captured_tiles[0].out_of_game = 1
+
+                return {
+                    "tiles" : captured_tiles,
+                    "score" : None,
+                    "tiles2" : non_captured_tiles
+                }
+
+            for tile in self.get_all_tiles():
+                tile.captured = False
 
             # We make sure that the amount of captured tiles isn't the same as the amount left in the game, since
             if captured_len != self.tiles_left:
@@ -149,20 +145,23 @@ class Grid:
                 # we only take away the smaller group of tiles
                 if captured_len > non_captured_len:
                     for tile in non_captured_tiles:
-                        tile.out_of_game = player_number
+                        tile.out_of_game = 1
+                    final_captured_tiles = non_captured_tiles
 
                 else:
                     for tile in captured_tiles:
-                        tile.out_of_game = player_number
+                        tile.out_of_game = 1
+                    final_captured_tiles = captured_tiles
 
-            for tile in self.get_all_tiles():
-                tile.captured = False
 
-            self.tiles_left -= score
 
-            self.print_board() 
+                self.tiles_left -= score
 
-            return score
+
+                return {
+                    "tiles" : final_captured_tiles,
+                    "score" : score
+                }
         else:
             print("Could not add wall")
             return None
@@ -215,9 +214,7 @@ class Grid:
         for direction, coord in zip("nesw", (n, e, s, w)):
             if is_valid_tile(direction, coord):
                 self.flood_fill(coord)
-        
-
-
+    
     def print_board(self):
         def print_horizontal(row, bottom=False):
             print_row = ""
@@ -248,6 +245,7 @@ class Grid:
             print_horizontal(row)
             print_vertical(row)
         print_horizontal(self.grid[-1], bottom=True)
+        
 
 
 class Game:
@@ -258,48 +256,41 @@ class Game:
             grid = Grid()
         self.grid = grid
         self.counter = 0
+        self.numberOfPlayers = 0
+        print("New changes have been added")
 
     def add_player(self, username):
-        player_number = len(self.players) + 1
+        self.numberOfPlayers += 1
 
-        self.players.append(Player(username, self.grid, player_number))
+        self.players.append(Player(username, self.grid, self.numberOfPlayers))
 
     def next_player(self):
         return self.players[(self.counter + 1) % len(self.players)]
         
-    def make_move(self, player):
-        pass
 
-    def play(self):
-        player_number = len(self.players)
+    def play(self, coord, direction, player):
+        self.numberOfPlayers = len(self.players)
         
-        print("Here is the current board:")
-        self.grid.print_board()
+        player_rotation = self.counter % self.numberOfPlayers
+        current_player = self.players[player_rotation]
 
-        print("Give an input in the following format: 'x y direction'. x and y are coordinates, direction is either n/e/s/w")
-        while True:
-            player_rotation = self.counter % player_number
-            current_player = self.players[player_rotation]
+        if current_player.username == player:
+            result = self.grid.make_move(coord, direction)
 
-            addr, direction = self.input_to_coords(current_player.username, current_player.number)
-
-            if direction in ["n", "e", "s", "w"]:
-                score = self.grid.make_move(addr, direction = direction, player_number = current_player.number)
-                if isinstance(score, Tile):
+            if result != None:
+                if (score := result["score"]) == None:
                     current_player.points += 1
 
                     next_player = self.next_player()
                     next_player.points += 1
-                    score.out_of_game = next_player.number
 
-                    self.grid.print_board()
-                    print("Scores:")
-                    for player in self.players:
-                        print(f"- {player.username} ({current_player.number}): {player.points}")
-                    break
-                elif score != None:
-                    current_player.points += score
-                    self.counter += 1
+                    return result
+
+                current_player.points += score
+                self.counter += 1
+                return result
+        else:
+            print("It's not this player's turn")
 
 
 class Player:
