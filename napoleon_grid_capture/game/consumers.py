@@ -1,16 +1,31 @@
 import json
 from channels.generic.websocket import WebsocketConsumer
+from asgiref.sync import async_to_sync
 from importlib import reload
 from . import napoleon
 Game, Grid = napoleon.Game, napoleon.Grid
 
 class GameConsumer(WebsocketConsumer):
     def connect(self):
-        self.accept()
+        self.room_name = self.scope['url_route']['kwargs']['room_name']
+        self.game_group_name = 'chat_%s' % self.room_name
+
+
         self.game = None
+        # Join room group
+        async_to_sync(self.channel_layer.group_add)(
+            self.game_group_name,
+            self.channel_name
+        )
+
+        self.accept()
 
     def disconnect(self, close_code):
-        pass
+        # Leave room group
+        async_to_sync(self.channel_layer.group_discard)(
+            self.game_group_name,
+            self.channel_name
+        )
 
     def receive(self, text_data):
         data = json.loads(text_data)
@@ -44,11 +59,27 @@ class GameConsumer(WebsocketConsumer):
                     if not isinstance(wall, napoleon.Border):
                         remove_walls.append(f"{tile.x}-{tile.y}-{direction}")
 
-        self.game.grid.print_board()
-
-        self.send(text_data=json.dumps({
+        move = {
             'player': player,
             'tiles' : tiles,
             'wall' : wall_id,
             'remove_walls' : remove_walls
-        }))
+        }
+
+        # Send message to room group
+        async_to_sync(self.channel_layer.group_send)(
+            self.game_group_name,
+            {
+                'type': 'make_move',
+                'move': move
+            }
+        )
+
+        # self.send(text_data=json.dumps())
+
+    # Receive message from room group
+    def make_move(self, event):
+        move = event['move']
+
+        # Send message to WebSocket
+        self.send(text_data=json.dumps(move))

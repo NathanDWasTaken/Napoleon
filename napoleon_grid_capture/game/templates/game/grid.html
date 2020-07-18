@@ -52,6 +52,8 @@
         gameSocket.onmessage = function(e) {
             const data = JSON.parse(e.data);
 
+            console.log(data)
+
             if (data.remove_walls != null) {
                 for (const wall in data.remove_walls) {
                     document.getElementById(data.remove_walls[wall]).remove()
@@ -74,8 +76,6 @@
             let x2 = parseInt(line.getAttribute("x2"))
             let y2 = parseInt(line.getAttribute("y2"))
 
-            console.log(x1, y1, x2, y2)
-            console.log(line)
             
             player_colour = rgb_to_rgba(players[player_turn_counter].colour, "0,9")
 
@@ -84,13 +84,12 @@
             wall.setAttribute("stroke", player_colour)
             line.remove()
             
-            console.log("The new wall:", wall)
-
             document.getElementById("grid").appendChild(wall)
 
             next_player()
 
-            document.getElementById("highlighted").remove()
+            try {document.getElementById("highlighted").remove()}
+            catch {}
             my_turn = false
         };
 
@@ -248,7 +247,7 @@
     const roomName = JSON.parse(document.getElementById('game-id').textContent)
 
     let gameSocket = new WebSocket(`ws://${window.location.host}/ws/game/${roomName}/`);
-    gameSocket.onopen = function(e) {createGrid(500, 500, 10, 10)}   
+    gameSocket.onopen = function(e) {createGrid(400, 400, 8, 8)}   
 </script>
 
 {% endblock content %}
