@@ -1,33 +1,31 @@
 import json
-from channels.generic.websocket import WebsocketConsumer
-from asgiref.sync import async_to_sync
-from importlib import reload
-from . import napoleon
-Game, Grid = napoleon.Game, napoleon.Grid
+from channels.generic.websocket import AsyncJsonWebsocketConsumer
+from .napoleon import Game, Grid
 
-class GameConsumer(WebsocketConsumer):
-    def connect(self):
-        self.room_name = self.scope['url_route']['kwargs']['room_name']
-        self.game_group_name = 'chat_%s' % self.room_name
+class GameConsumer(AsyncJsonWebsocketConsumer):
+    async def connect(self):
+        self.game_inst = self.scope['url_route']['kwargs']['game_inst']
+        self.game_group_name = 'chat_%s' % self.game_inst
 
+        print(self.channel_layer)
 
         self.game = None
         # Join room group
-        async_to_sync(self.channel_layer.group_add)(
+        await self.channel_layer.group_add(
             self.game_group_name,
             self.channel_name
         )
 
-        self.accept()
+        await self.accept()
 
-    def disconnect(self, close_code):
+    async def disconnect(self, close_code):
         # Leave room group
-        async_to_sync(self.channel_layer.group_discard)(
+        await self.channel_layer.group_discard(
             self.game_group_name,
             self.channel_name
         )
 
-    def receive(self, text_data):
+    async def receive(self, text_data):
         data = json.loads(text_data)
 
         player = data["player"]
@@ -67,7 +65,7 @@ class GameConsumer(WebsocketConsumer):
         }
 
         # Send message to room group
-        async_to_sync(self.channel_layer.group_send)(
+        await self.channel_layer.group_send(
             self.game_group_name,
             {
                 'type': 'make_move',
@@ -78,8 +76,8 @@ class GameConsumer(WebsocketConsumer):
         # self.send(text_data=json.dumps())
 
     # Receive message from room group
-    def make_move(self, event):
+    async def make_move(self, event):
         move = event['move']
 
         # Send message to WebSocket
-        self.send(text_data=json.dumps(move))
+        await self.send(text_data=json.dumps(move))
