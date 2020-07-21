@@ -1,0 +1,255 @@
+{% extends "game/base.html" %}
+{% block content %}
+
+{{ game_id|json_script:"game-id" }}
+
+<script type="text/javascript">
+    const standart_gray = "rgb(128,128,128)"
+    function add_line(x1, y1, x2, y2, id = null, grid=false) {
+        var newLine = document.createElementNS('http://www.w3.org/2000/svg','line');
+
+        let width = 8
+        let colour = standart_gray
+        if (id != null) {
+            newLine.setAttribute('id', id);
+        }
+
+        if (grid) {
+            if (id.includes("s")) {
+                x1 = parseInt(x1) - width / 2
+                x2 = parseInt(x2) + width / 2
+            }
+
+            else if (id.includes("e")) {
+                y1 = parseInt(y1) - width / 2
+                y2 = parseInt(y2) + width / 2
+            }
+        }
+
+        newLine.setAttribute('x1', x1);
+        newLine.setAttribute('y1', y1);
+        newLine.setAttribute('x2', x2);
+        newLine.setAttribute('y2', y2);
+        newLine.setAttribute("stroke", colour)
+        newLine.setAttribute("stroke-width", width)
+
+        return newLine
+    }
+
+    function rgb_to_rgba(rgb, a) {
+        if(rgb.indexOf('a') == -1){
+            return rgb.replace(')', `, ${a})`).replace('rgb', 'rgba');
+        }}
+
+    function createGrid(svg_width, svg_height, columns, rows) {
+        gameSocket.send(JSON.stringify({
+            "command" : "create_game",
+            "width" : columns,
+            "height" : rows,
+            "player" : me.username
+        }))
+        
+        
+        gameSocket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+
+            console.log(data)
+
+            if (data.remove_walls != null) {
+                for (const wall in data.remove_walls) {
+                    document.getElementById(data.remove_walls[wall]).remove()
+                }
+            }
+
+            let tile_colour = rgb_to_rgba(players[player_turn_counter].colour, "0,5")
+
+            for (const tile in data.tiles) {
+                const tile_id = data.tiles[tile]
+
+                const rect = document.getElementById(tile_id)
+                rect.setAttribute("fill", tile_colour)
+                rect.setAttribute("opacity", "0.5")
+            }
+
+            const line = document.getElementById(data.wall)
+            let x1 = parseInt(line.getAttribute("x1"))
+            let y1 = parseInt(line.getAttribute("y1"))
+            let x2 = parseInt(line.getAttribute("x2"))
+            let y2 = parseInt(line.getAttribute("y2"))
+
+            
+            player_colour = rgb_to_rgba(players[player_turn_counter].colour, "0,9")
+
+            const wall = add_line(x1, y1, x2, y2, id=`wall-${x1}-${y1}`, colour=player_colour)
+            wall.setAttribute("marked", "true")
+            wall.setAttribute("stroke", player_colour)
+            line.remove()
+            
+            document.getElementById("grid").appendChild(wall)
+
+            next_player()
+
+            try {document.getElementById("highlighted").remove()}
+            catch {}
+            my_turn = false
+        };
+
+
+
+        let column_len = svg_width / columns
+        let row_len = svg_height / rows
+
+
+        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        svg.id = "grid"
+
+        svg.setAttribute("width", svg_width);
+        svg.setAttribute("height", svg_height);
+        
+        
+        for (row = 0; row < rows; row++) {
+            for (column = 1; column <= columns; column++) {
+                let x = column * column_len
+                let y = row * row_len
+
+                const newRect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+                newRect.id = `${column-1}-${row}`
+                newRect.setAttribute("width", column_len)
+                newRect.setAttribute("height", row_len)
+                newRect.setAttribute("x", x-column_len)
+                newRect.setAttribute("y", y)
+                newRect.setAttribute("fill", "none")
+                newRect.setAttribute("opacity", "0")
+                svg.appendChild(newRect)
+            }
+        }
+        
+        for (row = 0; row < rows; row++) {
+            for (column = 1; column < columns; column++) {
+                let x = column * column_len
+                let y = row * row_len
+
+                const newLine = add_line(x, y, x, y + row_len, id=`${column-1}-${row}-e`, grid = true)
+                newLine.setAttribute("marked", "false")
+                svg.appendChild(newLine)
+            }
+        }
+
+        for (column = 0; column < columns; column++) {
+            for (row = 1; row < rows; row++) {
+
+                let x = column * column_len
+                let y = row * row_len
+
+                const newLine = add_line(x, y, x + column_len, y, id=`${column}-${row-1}-s`, grid = true)
+                newLine.setAttribute("marked", "false")
+                svg.appendChild(newLine)
+            }
+        }
+
+
+        document.body.appendChild(svg)
+
+
+        document.getElementById("grid").childNodes.forEach(function(line){
+            if (line.tagName == "line") {
+                const svg = document.getElementById("grid")
+                
+
+                line.addEventListener('mouseenter', function (event) {
+                    const old_highlight = document.getElementById("highlighted")
+                    if (old_highlight != null) {old_highlight.remove()}
+
+                    if (line.getAttribute("marked") == "false" && (my_turn || local)) {
+                        make_highlight(line.id, players[player_turn_counter].colour)
+                    }
+                })
+            }})
+
+            // Create the border
+            svg.appendChild(add_line(0, 0, 0, svg_height))
+            svg.appendChild(add_line(0, 0, svg_width, 0))
+            svg.appendChild(add_line(0, svg_height, svg_width, svg_height))
+            svg.appendChild(add_line(svg_width, 0, svg_width, svg_height))
+    }
+
+    function make_highlight(line_id, player_colour) {
+        
+        const svg = document.getElementById("grid")
+
+        const line = document.getElementById(line_id)
+        const x1 = line.getAttribute("x1")
+        const y1 = line.getAttribute("y1")
+        const x2 = line.getAttribute("x2")
+        const y2 = line.getAttribute("y2")
+
+        const highlight = add_line(x1, y1, x2, y2, id="highlighted")
+        highlight.setAttribute("stroke-width", "12")
+        highlight.setAttribute("stroke", rgb_to_rgba(player_colour, "0,9"))
+
+        highlight.addEventListener('mouseleave', function (event) {
+            highlight.remove()
+        })
+
+        highlight.addEventListener('click', function (event) {
+            if (line.getAttribute("marked") == "false" && (my_turn || local)) {
+                gameSocket.send(JSON.stringify({
+                    'command' : 'make_move',
+                    'wall': line.id,
+                    'player' : me.username
+                }));
+                make_move()
+            }
+        })
+        svg.appendChild(highlight)
+    }
+
+    class Player {
+        constructor(username, colour, player_number) {
+            this.username = username
+            this.colour = colour
+            this.player_number = player_number
+        }
+    }
+</script>
+
+
+
+
+<script type="text/javascript">
+
+    var players = []
+    var my_turn = true
+    var player_turn_counter = 0
+    var local = true
+
+    function add_player(username, colour) {
+        let player_count = players.length
+        var player = new Player(username, colour, player_count + 1)
+        players.push(player)
+        return player
+    }
+
+    let me = add_player("Nathan", "red")
+
+    function next_player() {
+        player_turn_counter = (player_turn_counter + 1) % players.length
+        if (players[player_turn_counter] == me) {
+            my_turn = true
+            make_move()
+        }
+    }
+
+    function make_move() {
+        
+    }
+</script>
+
+<script>
+    const roomName = JSON.parse(document.getElementById('game-id').textContent)
+
+    let gameSocket = new WebSocket(`ws://${window.location.host}/ws/game/${roomName}/`);
+    gameSocket.onopen = function(e) {createGrid(400, 400, 8, 8)}   
+</script>
+
+{% endblock content %}
