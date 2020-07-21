@@ -257,7 +257,7 @@ class Game:
         self.grid = grid
         self.counter = 0
         self.numberOfPlayers = 0
-        print("New changes have been added")
+        self.moves = []
 
     def add_player(self, username):
         self.numberOfPlayers += 1
@@ -268,7 +268,13 @@ class Game:
         return self.players[(self.counter + 1) % len(self.players)]
         
 
-    def play(self, coord, direction, player):
+    def play(self, data):
+        self.moves.append(data)
+
+        player = data["player"]
+        wall_list = data['wall'].split("-")
+        coord, direction = (int(wall_list[0]), int(wall_list[1])), wall_list[2]
+
         self.numberOfPlayers = len(self.players)
         
         player_rotation = self.counter % self.numberOfPlayers

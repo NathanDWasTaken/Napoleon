@@ -43,6 +43,7 @@
 
     function createGrid(svg_width, svg_height, columns, rows) {
         gameSocket.send(JSON.stringify({
+            "command" : "create_game",
             "width" : columns,
             "height" : rows,
             "player" : me.username
@@ -193,6 +194,7 @@
         highlight.addEventListener('click', function (event) {
             if (line.getAttribute("marked") == "false" && (my_turn || local)) {
                 gameSocket.send(JSON.stringify({
+                    'command' : 'make_move',
                     'wall': line.id,
                     'player' : me.username
                 }));

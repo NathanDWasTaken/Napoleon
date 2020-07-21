@@ -1,2 +1,5 @@
-/__pycache__
 /names.txt
+
+env/
+**/*.pyc
+**/__pycache__
