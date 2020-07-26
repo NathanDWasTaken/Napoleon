@@ -29,6 +29,7 @@
     let lines = []
 
     let players = []
+    let players_dict = {}
     var player_turn_counter = 0
 
     const standart_gray = "rgb(211,211,211)"
@@ -67,6 +68,7 @@
     function add_player(username, colour) {
         var player = new Player(username, colour)
         players.push(player)
+        players_dict[username] = player
         return player
     }
 
@@ -77,9 +79,12 @@
 
 
 
-    function createGrid(svg_width, svg_height) {
-        let column_len = svg_width / columns
-        let row_len = svg_height / rows
+    function createGrid() {
+        let column_len = 50
+        let row_len = column_len
+
+        let svg_width = column_len * columns
+        let svg_height = row_len * rows
 
 
         const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -196,40 +201,43 @@
     }
 
     function make_highlight(line_id, player_colour) {
-        const svg = document.getElementById("grid")
+        if ((multiplayer && game_started) || !multiplayer) {
+            const svg = document.getElementById("grid")
 
-        const line = document.getElementById(line_id)
-        const x1 = line.getAttribute("x1")
-        const y1 = line.getAttribute("y1")
-        const x2 = line.getAttribute("x2")
-        const y2 = line.getAttribute("y2")
+            const line = document.getElementById(line_id)
+            const x1 = line.getAttribute("x1")
+            const y1 = line.getAttribute("y1")
+            const x2 = line.getAttribute("x2")
+            const y2 = line.getAttribute("y2")
 
-        const highlight = add_line(x1, y1, x2, y2, id="highlighted")
-        highlight.setAttribute("stroke-width", "12")
-        highlight.setAttribute("stroke", rgb_to_rgba(player_colour, "0,9"))
+            const highlight = add_line(x1, y1, x2, y2, id="highlighted")
+            highlight.setAttribute("stroke-width", "12")
+            highlight.setAttribute("stroke", rgb_to_rgba(player_colour, "0,9"))
 
-        highlight.addEventListener('mouseleave', function (event) {
-            highlight.remove()
-        })
+            highlight.addEventListener('mouseleave', function (event) {
+                highlight.remove()
+            })
 
-        highlight.addEventListener('click', function (event) {
-            if (line.getAttribute("marked") == "false") {
+            highlight.addEventListener('click', function (event) {
+                if (line.getAttribute("marked") == "false") {
 
-                let player = players[player_turn_counter]
-                let next_player = players[(player_turn_counter + 1) % players.length]
+                    let player = players[player_turn_counter]
+                    let next_player = players[(player_turn_counter + 1) % players.length]
 
-                // make a move
-                gameSocket.send(JSON.stringify({
-                    'command' : 'make move',
-                    'wall': line.id,
-                    'colour' : player.colour,
-                    'player' : player.username,
-                    'next player' : next_player.username,
-                    'next colour' : next_player.colour
-                }));
-            }
-        })
-        svg.appendChild(highlight)
+                    // make a move
+                    gameSocket.send(JSON.stringify({
+                        'command' : 'make move',
+                        'wall': line.id,
+                        'colour' : player.colour,
+                        'player' : player.username,
+                        'next player' : next_player.username,
+                        'next colour' : next_player.colour
+                    }));
+                }
+            })
+            svg.appendChild(highlight)
+        }
+
     }
 
     class Player {

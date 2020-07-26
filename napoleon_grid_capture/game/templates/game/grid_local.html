@@ -3,6 +3,8 @@
 <script>
     let gameSocket = new WebSocket(`ws://${window.location.host}/ws/game/local/${game_id}/`)
     
+    const multiplayer = false
+
     gameSocket.onopen = function(e) {
         // create local game
         gameSocket.send(JSON.stringify({
@@ -64,7 +66,7 @@
             catch {}
             my_turn = false
         };
-        createGrid(400, 400)
+        createGrid()
         }   
 </script>
 

@@ -2,8 +2,7 @@ import json
 from channels.generic.websocket import AsyncWebsocketConsumer
 from .napoleon import Game, Grid, Border
 
-
-class MultiplayerConsumer(AsyncWebsocketConsumer):
+class GameConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.game_id = self.scope['url_route']['kwargs']['game_id']
 
@@ -14,16 +13,50 @@ class MultiplayerConsumer(AsyncWebsocketConsumer):
         )
         self.lobby_leader = False
 
+        default_group = {"game_inst" : None, "players" : {}, "started" : False}
+
         try:
             self.group = self.get_group()
         except AttributeError:
-            self.channel_layer.game_groups = {self.game_id : {"game_inst" : None, "players" : {}, "started" : False}}
+            self.channel_layer.game_groups = {self.game_id : default_group}
+        except KeyError:
+            self.channel_layer.game_groups[self.game_id] = default_group
+        self.group = self.get_group()
 
+        self.score = 0
 
         await self.accept()
 
+    
+    def get_group(self):
+        return self.channel_layer.game_groups[self.game_id]
+
+    
+    # Send message to member in group
+    async def send_move(self, event):
+        move = event['move']
+
+        # Send message to WebSocket
+        await self.send(text_data=json.dumps(move))
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+class MultiplayerConsumer(GameConsumer):
     async def disconnect(self, close_code):
         # Leave room group
         await self.channel_layer.group_discard(
@@ -39,38 +72,42 @@ class MultiplayerConsumer(AsyncWebsocketConsumer):
         if self.channel_layer.game_groups == {}:
             delattr(self.channel_layer, "game_groups")
 
-    def get_group(self):
-        return self.channel_layer.game_groups[self.game_id]
-
     async def receive(self, text_data):
         data = json.loads(text_data)
         command = data.pop("command")
 
         if command == "make move":
+            remove_walls = None
+
             game_inst = self.group["game_inst"]
 
             result = game_inst.play(data)
 
-            remove_walls = None
-
             if result == "InvalidTurn":
                 return
+
             elif result == None:
                 tiles = None
+
             else:
-                if result["score"] == None:
+                self.score = result["total score"]
+
+                if result["outcome"] == "end":
                     #this means that the last 2 tiles were captured (you can get these by calling "tiles" and "tiles2")
                     pass
-                tiles = [f"{tile.x}-{tile.y}" for tile in result["tiles"]]
-                remove_walls = []
-                for tile in result["tiles"]:
-                    for direction in ["s", "e"]:
-                        wall = tile.walls[direction]
-                        if not isinstance(wall, Border):
-                            remove_walls.append(f"{tile.x}-{tile.y}-{direction}")
+        
+                else:
+                    tiles = [f"{tile.x}-{tile.y}" for tile in result["tiles"]]
+                    remove_walls = []
+                    for tile in result["tiles"]:
+                        for direction in ["s", "e"]:
+                            wall = tile.walls[direction]
+                            if not isinstance(wall, Border):
+                                remove_walls.append(f"{tile.x}-{tile.y}-{direction}")
 
             move = {
                 'command' : "add move",
+                'score' : self.score,
                 'player': self.username,
                 'colour' : self.colour,
                 'tiles' : tiles,
@@ -95,9 +132,10 @@ class MultiplayerConsumer(AsyncWebsocketConsumer):
             self.colour = data["colour"]
 
             if (game_inst := self.group["game_inst"]) != None:
-                self.group["players"][self.username] = self
-                
-                game_inst.add_player(self.username)
+                if not self.group["started"]:
+                    self.group["players"][self.username] = self
+                    
+                    game_inst.add_player(self.username)
 
                 for move in game_inst.moves:
                     await self.send(text_data=json.dumps(move))
@@ -133,12 +171,6 @@ class MultiplayerConsumer(AsyncWebsocketConsumer):
 
 
 
-    # Sendf message to member in group
-    async def send_move(self, event):
-        move = event['move']
-
-        # Send message to WebSocket
-        await self.send(text_data=json.dumps(move))
 
 
 
@@ -180,29 +212,7 @@ class MultiplayerConsumer(AsyncWebsocketConsumer):
 
 
 
-
-
-
-class LocalConsumer(AsyncWebsocketConsumer):
-    async def connect(self):
-        self.game_id = self.scope['url_route']['kwargs']['game_id']
-
-        # Join room group
-        await self.channel_layer.group_add(
-            self.game_id,
-            self.channel_name
-        )
-
-        try:
-            self.group = self.get_group()
-        except AttributeError:
-            self.channel_layer.game_groups = {self.game_id : {"game_inst" : None, "players" : {}, "started" : False}}
-
-
-        await self.accept()
-
-
-
+class LocalConsumer(GameConsumer):
     async def disconnect(self, close_code):
         # Leave room group
         await self.channel_layer.group_discard(
@@ -214,9 +224,6 @@ class LocalConsumer(AsyncWebsocketConsumer):
 
         if self.channel_layer.game_groups == {}:
             delattr(self.channel_layer, "game_groups")
-
-    def get_group(self):
-        return self.channel_layer.game_groups[self.game_id]
 
     async def receive(self, text_data):
         data = json.loads(text_data)
@@ -311,13 +318,3 @@ class LocalConsumer(AsyncWebsocketConsumer):
 
             for player in self.players:
                 game_inst.add_player(player["username"])
-        
-
-
-
-    # Send message to member in group
-    async def send_move(self, event):
-        move = event['move']
-
-        # Send message to WebSocket
-        await self.send(text_data=json.dumps(move))
