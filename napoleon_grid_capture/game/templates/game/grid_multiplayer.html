@@ -2,7 +2,8 @@
 {% block content %}
 
 {{ game_id|json_script:"game-id" }}
-
+<div id="main-container">
+</div>
 <script type="text/javascript">
     const standart_gray = "rgb(128,128,128)"
     function add_line(x1, y1, x2, y2, id = null, grid=false) {
@@ -43,55 +44,84 @@
 
     function createGrid(svg_width, svg_height, columns, rows) {
         gameSocket.send(JSON.stringify({
-            "command" : "create_game",
+            "command" : "join",
             "width" : columns,
             "height" : rows,
-            "player" : me.username
+            "player" : me.username,
+            "colour" : me.colour
         }))
         
         
         gameSocket.onmessage = function(e) {
             const data = JSON.parse(e.data);
 
+            const command = data["command"]
             console.log(data)
 
-            if (data.remove_walls != null) {
-                for (const wall in data.remove_walls) {
-                    document.getElementById(data.remove_walls[wall]).remove()
+            if (command == "add move") {
+                if (data.remove_walls != null) {
+                    for (const wall in data.remove_walls) {
+                        document.getElementById(data.remove_walls[wall]).remove()
+                    }
+                }
+
+                let player_colour = data["colour"]
+
+                let wall_colour = rgb_to_rgba(player_colour, "0,9")
+                let tile_colour = rgb_to_rgba(player_colour, "0,5")
+
+                for (const tile in data.tiles) {
+                    const tile_id = data.tiles[tile]
+
+                    const rect = document.getElementById(tile_id)
+                    rect.setAttribute("fill", tile_colour)
+                    rect.setAttribute("opacity", "0.5")
+                }
+
+                const line = document.getElementById(data.wall)
+                let x1 = parseInt(line.getAttribute("x1"))
+                let y1 = parseInt(line.getAttribute("y1"))
+                let x2 = parseInt(line.getAttribute("x2"))
+                let y2 = parseInt(line.getAttribute("y2"))
+
+                
+
+                const wall = add_line(x1, y1, x2, y2, id=`wall-${x1}-${y1}`, colour=wall_colour)
+                wall.setAttribute("marked", "true")
+                wall.setAttribute("stroke", wall_colour)
+                line.remove()
+                
+                document.getElementById("grid").appendChild(wall)
+
+                try {document.getElementById("highlighted").remove()}
+                catch {}
+                my_turn = false
+            }
+
+            else if (command == "join response") {
+                if (data["lobby leader"]) {
+                    const start_game = document.createElement("BUTTON")
+                    start_game.id = "start-game-btn"
+                    start_game.class = "btn btn-primary"
+                    start_game.innerHTML = "Start Game"
+                    start_game.onclick = function(e) {
+                        gameSocket.send(JSON.stringify({
+                            "command" : "start",
+                            "player" : me.username
+                        }))
+                    }
+                    document.getElementById("main-container").appendChild(start_game)
                 }
             }
 
-            let tile_colour = rgb_to_rgba(players[player_turn_counter].colour, "0,5")
-
-            for (const tile in data.tiles) {
-                const tile_id = data.tiles[tile]
-
-                const rect = document.getElementById(tile_id)
-                rect.setAttribute("fill", tile_colour)
-                rect.setAttribute("opacity", "0.5")
+            else if (command == "start response") {
+                my_turn = data["player turn"]
+                document.getElementById("start-game-btn").remove()
             }
 
-            const line = document.getElementById(data.wall)
-            let x1 = parseInt(line.getAttribute("x1"))
-            let y1 = parseInt(line.getAttribute("y1"))
-            let x2 = parseInt(line.getAttribute("x2"))
-            let y2 = parseInt(line.getAttribute("y2"))
-
-            
-            player_colour = rgb_to_rgba(players[player_turn_counter].colour, "0,9")
-
-            const wall = add_line(x1, y1, x2, y2, id=`wall-${x1}-${y1}`, colour=player_colour)
-            wall.setAttribute("marked", "true")
-            wall.setAttribute("stroke", player_colour)
-            line.remove()
-            
-            document.getElementById("grid").appendChild(wall)
-
-            next_player()
-
-            try {document.getElementById("highlighted").remove()}
-            catch {}
-            my_turn = false
+            else {
+                console.log(data)
+            }
         };
 
 
@@ -147,8 +177,8 @@
             }
         }
 
-
-        document.body.appendChild(svg)
+        const main = document.getElementById("main-container")
+        main.appendChild(svg)
 
 
         document.getElementById("grid").childNodes.forEach(function(line){
@@ -160,8 +190,8 @@
                     const old_highlight = document.getElementById("highlighted")
                     if (old_highlight != null) {old_highlight.remove()}
 
-                    if (line.getAttribute("marked") == "false" && (my_turn || local)) {
-                        make_highlight(line.id, players[player_turn_counter].colour)
+                    if (line.getAttribute("marked") == "false" && my_turn) {
+                        make_highlight(line.id, me.colour)
                     }
                 })
             }})
@@ -192,57 +222,44 @@
         })
 
         highlight.addEventListener('click', function (event) {
-            if (line.getAttribute("marked") == "false" && (my_turn || local)) {
+            if (line.getAttribute("marked") == "false") {
                 gameSocket.send(JSON.stringify({
-                    'command' : 'make_move',
+                    'command' : 'make move',
                     'wall': line.id,
                     'player' : me.username
                 }));
-                make_move()
             }
         })
         svg.appendChild(highlight)
     }
 
     class Player {
-        constructor(username, colour, player_number) {
+        constructor(username, colour) {
             this.username = username
             this.colour = colour
-            this.player_number = player_number
         }
     }
 </script>
 
 
+<script>
+    function create_random_username(length) {
+        var result           = '';
+        var characters       = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        var charactersLength = characters.length;
+        for ( var i = 0; i < length; i++ ) {
+            result += characters.charAt(Math.floor(Math.random() * charactersLength));
+        }
+        return result;
+    }
+</script>
 
 
 <script type="text/javascript">
+    const me = new Player(create_random_username(7), "red")
 
-    var players = []
-    var my_turn = true
+    var my_turn = false
     var player_turn_counter = 0
-    var local = true
-
-    function add_player(username, colour) {
-        let player_count = players.length
-        var player = new Player(username, colour, player_count + 1)
-        players.push(player)
-        return player
-    }
-
-    let me = add_player("Nathan", "red")
-
-    function next_player() {
-        player_turn_counter = (player_turn_counter + 1) % players.length
-        if (players[player_turn_counter] == me) {
-            my_turn = true
-            make_move()
-        }
-    }
-
-    function make_move() {
-        
-    }
 </script>
 
 <script>

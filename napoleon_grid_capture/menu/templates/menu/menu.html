@@ -1,4 +1,9 @@
 {% extends "game/base.html" %}
 {% block content %}
-<h1>Hello there</h1>
+
+{{ game_id|json_script:"game-id" }}
+<div class="container">
+    <a href="{% url 'napoleon-local' %}" class="btn btn-primary">Local Game</a>
+</div>
+
 {% endblock content %}
