@@ -49,13 +49,11 @@
                 document.getElementById("grid").appendChild(wall)
             }
 
-            if (data["remove_walls"] != null) {
-                try {
-                    for (const wall in data["remove_walls"]) {
-                        document.getElementById(data["remove_walls"][wall]).remove()
-                    }
-                } catch {}
-            }
+            try {
+                for (const wall in data["remove_walls"]) {
+                    document.getElementById(data["remove_walls"][wall]).remove()
+                }
+            } catch {}
 
             // Update player score in table
             document.getElementById(`score-${player.username}`).innerText = player.score

@@ -25,12 +25,7 @@
             const command = data["command"]
 
             if (command == "add move") {
-                if (data.remove_walls != null) {
-                    for (const wall in data.remove_walls) {
-                        document.getElementById(data.remove_walls[wall]).remove()
-                    }
-                }
-
+                console.log(data)
                 let player_colour = data["colour"]
 
                 let wall_colour = rgb_to_rgba(player_colour, "0,9")
@@ -44,31 +39,39 @@
                     rect.setAttribute("opacity", "0.5")
                 }
 
-                const line = document.getElementById(data.wall)
-                let x1 = parseInt(line.getAttribute("x1"))
-                let y1 = parseInt(line.getAttribute("y1"))
-                let x2 = parseInt(line.getAttribute("x2"))
-                let y2 = parseInt(line.getAttribute("y2"))
+                if (data["wall"] != null) {
+                    const line = document.getElementById(data["wall"])
+                    let x1 = parseInt(line.getAttribute("x1"))
+                    let y1 = parseInt(line.getAttribute("y1"))
+                    let x2 = parseInt(line.getAttribute("x2"))
+                    let y2 = parseInt(line.getAttribute("y2"))
 
-                
+                    
 
-                const wall = add_line(x1, y1, x2, y2, id=`wall-${x1}-${y1}`, colour=wall_colour)
-                wall.setAttribute("marked", "true")
-                wall.setAttribute("stroke", wall_colour)
-                line.remove()
-                
-                document.getElementById("grid").appendChild(wall)
+                    const wall = add_line(x1, y1, x2, y2, id=`wall-${x1}-${y1}`, colour=wall_colour)
+                    wall.setAttribute("marked", "true")
+                    wall.setAttribute("stroke", wall_colour)
+                    line.remove()
+                    
+                    document.getElementById("grid").appendChild(wall)
+                }
 
-                try {document.getElementById("highlighted").remove()}
-                catch {}
-                my_turn = false
+                try {
+                    for (const wall in data.remove_walls) {
+                        document.getElementById(data.remove_walls[wall]).remove()
+                    }
+                } catch {}
 
+                try {document.getElementById("highlighted").remove()} catch {}
                 
                 // Update player score in table
                 let player = players_dict[data["player"]]
 
                 player.score = data["score"]
                 document.getElementById(`score-${player.username}`).innerText = player.score
+
+                if (data["next player"] == me.username) {my_turn = true}
+                else {my_turn = false}
             }
 
             else if (command == "join response") {
@@ -88,10 +91,23 @@
             }
 
             else if (command == "start response") {
+                game_started = true
                 my_turn = data["player turn"]
                 document.getElementById("start-game-btn").remove()
 
-                game_started = true
+            }
+
+            else if (command == "add player") {
+                for (const index in data["players"]) {
+                    if (! game_started) {
+                        let player = data["players"][index]
+                        let username = player["username"]
+
+                        if (username != me.username) {
+                            add_player(username, player["colour"])
+                        }
+                    }
+                }
             }
 
             else {

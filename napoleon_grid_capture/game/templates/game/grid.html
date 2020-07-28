@@ -21,9 +21,17 @@
     }
 </style>
 
+<script>
+    var css = "font-family: Impact, fantasy ;font-size : 70px"
+
+    console.log("%cHol' Up!", css);
+    console.log("%cChanging things here can mess up your current game!", "font-size : 15px")
+    console.log("%cAct with Caution!", "color: red; font-size : 25px; font-weight: 1000")
+</script>
+
 <script type="text/javascript">
-    let columns = 8
-    let rows = 8
+    let columns = 4
+    let rows = 4
 
     const game_id = "local_{{ game_id }}"
     let lines = []
@@ -69,6 +77,26 @@
         var player = new Player(username, colour)
         players.push(player)
         players_dict[username] = player
+
+        //Add to table
+        const table = document.getElementById("score-board")
+        let row = table.insertRow()
+
+        let cell = row.insertCell()
+        let font = document.createElement("font")
+        font.setAttribute("color", colour)
+        font.innerText = username
+        cell.appendChild(font)
+
+        cell = row.insertCell()
+        font = document.createElement("font")
+        font.setAttribute("color", colour)
+        font.setAttribute("id", `score-${username}`)
+        font.innerText = 0
+
+        cell.appendChild(font)
+        
+
         return player
     }
 
@@ -165,28 +193,6 @@
         svg.appendChild(add_line(0, 0, svg_width, 0))
         svg.appendChild(add_line(0, svg_height, svg_width, svg_height))
         svg.appendChild(add_line(svg_width, 0, svg_width, svg_height))
-
-
-        const table = document.getElementById("score-board")
-        for (var index in players) {
-            player = players[index]
-
-            let row = table.insertRow()
-
-            let cell = row.insertCell()
-            let font = document.createElement("font")
-            font.setAttribute("color", player.colour)
-            font.innerText = player.username
-            cell.appendChild(font)
-
-            cell = row.insertCell()
-            font = document.createElement("font")
-            font.setAttribute("color", player.colour)
-            font.setAttribute("id", `score-${player.username}`)
-            font.innerText = player.score
-
-            cell.appendChild(font)
-        }
     }
 
     
@@ -201,7 +207,7 @@
     }
 
     function make_highlight(line_id, player_colour) {
-        if ((multiplayer && game_started) || !multiplayer) {
+        if ((multiplayer && my_turn) || !multiplayer) {
             const svg = document.getElementById("grid")
 
             const line = document.getElementById(line_id)

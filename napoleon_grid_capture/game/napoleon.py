@@ -313,7 +313,10 @@ class Game:
 
                 return result
         else:
-            print("It's not this player's turn")
+            print("It's not this player's turn:")
+            print("    User that sent the message:", player)
+            print("    User who's turn it is:", self.current_player.username)
+            print("    List of players:", [player.username for player in self.players])
             return "InvalidTurn"
 
 

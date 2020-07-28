@@ -33,11 +33,11 @@ class GameConsumer(AsyncWebsocketConsumer):
 
     
     # Send message to member in group
-    async def send_move(self, event):
-        move = event['move']
+    async def send_packet(self, event):
+        packet = event['packet']
 
         # Send message to WebSocket
-        await self.send(text_data=json.dumps(move))
+        await self.send(text_data=json.dumps(packet))
 
 
 
@@ -64,9 +64,9 @@ class MultiplayerConsumer(GameConsumer):
             self.channel_name
         )
 
-        self.group["players"].pop(self.username)
+        self.players.pop(self.username)
 
-        if self.group["players"] == {}:
+        if self.players == {}:
             self.channel_layer.game_groups.pop(self.game_id)
 
         if self.channel_layer.game_groups == {}:
@@ -79,9 +79,8 @@ class MultiplayerConsumer(GameConsumer):
         if command == "make move":
             remove_walls = None
 
-            game_inst = self.group["game_inst"]
-
-            result = game_inst.play(data)
+            result = self.game_inst.play(data)
+            next_player = self.game_inst.current_player
 
             if result == "InvalidTurn":
                 return
@@ -89,21 +88,65 @@ class MultiplayerConsumer(GameConsumer):
             elif result == None:
                 tiles = None
 
+            elif result["outcome"] == "end":
+                #this means that the last 2 tiles were captured (you can get these by calling "tiles" and "tiles2")
+                
+                tile1 = result["tiles"][0]
+                tile1_id = f"{tile1.x}-{tile1.y}"
+                player_inst = self.game_inst.current_player
+
+                move1 = {
+                    'command' : "add move",
+                    'score' : player_inst.points,
+                    'player' : self.username,
+                    'colour' : self.colour,
+                    'tiles' : [tile1_id],
+                    'wall' : data['wall'],
+                    'remove_walls' : [data["wall"]]
+                }
+
+                tile2 = result["tiles2"][0]
+                tile2_id = f"{tile2.x}-{tile2.y}"
+
+                player2_inst = self.game_inst.next_player()
+
+                move2 = {
+                    'command' : "add move",
+                    'score' : player2_inst.points,
+                    'player' : next_player.username,
+                    'colour' : self.players[player2_inst.username].colour,
+                    'tiles' : [tile2_id],
+                    'wall' : None,
+                    'remove_walls' : None
+                }
+
+                await self.channel_layer.group_send(
+                    self.game_id,
+                    {
+                        'type': 'send_packet',
+                        'packet': move1
+                    }
+                )
+
+                await self.channel_layer.group_send(
+                    self.game_id,
+                    {
+                        'type': 'send_packet',
+                        'packet': move2
+                    }
+                )
+
+                return 
+    
             else:
                 self.score = result["total score"]
-
-                if result["outcome"] == "end":
-                    #this means that the last 2 tiles were captured (you can get these by calling "tiles" and "tiles2")
-                    pass
-        
-                else:
-                    tiles = [f"{tile.x}-{tile.y}" for tile in result["tiles"]]
-                    remove_walls = []
-                    for tile in result["tiles"]:
-                        for direction in ["s", "e"]:
-                            wall = tile.walls[direction]
-                            if not isinstance(wall, Border):
-                                remove_walls.append(f"{tile.x}-{tile.y}-{direction}")
+                tiles = [f"{tile.x}-{tile.y}" for tile in result["tiles"]]
+                remove_walls = []
+                for tile in result["tiles"]:
+                    for direction in ["s", "e"]:
+                        wall = tile.walls[direction]
+                        if not isinstance(wall, Border):
+                            remove_walls.append(f"{tile.x}-{tile.y}-{direction}")
 
             move = {
                 'command' : "add move",
@@ -112,17 +155,18 @@ class MultiplayerConsumer(GameConsumer):
                 'colour' : self.colour,
                 'tiles' : tiles,
                 'wall' : data['wall'],
-                'remove_walls' : remove_walls
+                'remove_walls' : remove_walls,
+                'next player' : next_player.username
             }
 
-            game_inst.moves.append(move)
+            self.game_inst.moves.append(move)
 
             # Send message to room group
             await self.channel_layer.group_send(
                 self.game_id,
                 {
-                    'type': 'send_move',
-                    'move': move
+                    'type': 'send_packet',
+                    'packet': move
                 }
             )
 
@@ -131,16 +175,8 @@ class MultiplayerConsumer(GameConsumer):
             self.username = data["player"]
             self.colour = data["colour"]
 
-            if (game_inst := self.group["game_inst"]) != None:
-                if not self.group["started"]:
-                    self.group["players"][self.username] = self
-                    
-                    game_inst.add_player(self.username)
-
-                for move in game_inst.moves:
-                    await self.send(text_data=json.dumps(move))
-            else:
-                if not self.group["started"]:
+            if not self.group["started"]:
+                if (game_inst := self.group["game_inst"]) == None:
                     grid = Grid(width=data["width"], height=data["height"])
                     game = Game(grid=grid)
                     game.add_player(self.username)
@@ -148,13 +184,49 @@ class MultiplayerConsumer(GameConsumer):
                     
                     self.lobby_leader = True
                 else:
-                    print("Game already started, adding to spectators")
+                    game_inst.add_player(self.username)
+            else:
+                print(f"Game has already started, adding {self.username} to spectators")
 
-                self.group["players"][self.username] = self
-                await self.send(text_data=json.dumps({
-                    "command" : "join response",
-                    "lobby leader" : self.lobby_leader
-                    }))
+            self.players = self.group["players"]
+            self.players[self.username] = self
+
+            self.game_inst = self.group["game_inst"]
+
+            for move in self.game_inst.moves:
+                await self.send(text_data=json.dumps(move))
+
+            await self.send(text_data=json.dumps({
+                "command" : "join response",
+                "lobby leader" : self.lobby_leader
+            }))
+
+
+            add_player = {
+                "command" : "add player",
+                "players" : [{"username" : self.username, "colour" : self.colour}]
+            }
+
+            await self.channel_layer.group_send(
+                self.game_id,
+                {
+                    'type': 'send_packet',
+                    'packet': add_player
+                }
+            )
+
+            players = []
+
+            for username in self.players:
+                player = self.players[username]
+
+                players.append({"username" : player.username, "colour" : player.colour})
+
+            await self.send(text_data=json.dumps({
+                "command" : "add player",
+                "players" : players
+            }))
+
 
         elif command == "start":
             if self.lobby_leader:
