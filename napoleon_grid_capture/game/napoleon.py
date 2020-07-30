@@ -274,6 +274,14 @@ class Game:
 
         self.players_dict[username] = player
 
+    def remove_player(self, username):
+        player = self.players_dict[username]
+
+        self.players.remove(player)
+
+        self.current_player = self.next_player()
+
+
 
     def next_player(self):
         return self.players[(self.counter + 1) % len(self.players)]

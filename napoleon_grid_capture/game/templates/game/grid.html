@@ -81,10 +81,12 @@
         //Add to table
         const table = document.getElementById("score-board")
         let row = table.insertRow()
+        row.id = `row-${username}`
 
         let cell = row.insertCell()
         let font = document.createElement("font")
         font.setAttribute("color", colour)
+        font.setAttribute("id", `name-${username}`)
         font.innerText = username
         cell.appendChild(font)
 
@@ -244,6 +246,28 @@
             svg.appendChild(highlight)
         }
 
+    }
+
+    function victory() {
+        var most_score = null // {"users" : [null], "score" : null}
+        for (const index in players) {
+            let player = players[index]
+            if (most_score == null) {
+                console.log("First")
+                most_score = {"users" : [player], "score" : player.score}
+                console.log(most_score)
+            } else {
+                if (player.score > most_score["score"]) {
+                    most_score["users"] = [player]
+                    most_score["score"] = player.score
+                }
+                else if (player.score == most_score["score"]) {
+                    most_score["users"].push(player)
+                }
+            }
+        }
+        let winner = most_score["users"]
+        console.log("The winner(s) is/are", winner)
     }
 
     class Player {

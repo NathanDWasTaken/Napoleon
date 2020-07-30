@@ -25,7 +25,6 @@
             const command = data["command"]
 
             if (command == "add move") {
-                console.log(data)
                 let player_colour = data["colour"]
 
                 let wall_colour = rgb_to_rgba(player_colour, "0,9")
@@ -74,6 +73,19 @@
                 else {my_turn = false}
             }
 
+            else if (command == "add player") {
+                for (const index in data["players"]) {
+                    if (! game_started) {
+                        let player = data["players"][index]
+                        let username = player["username"]
+
+                        if (username != me.username) {
+                            add_player(username, player["colour"])
+                        }
+                    }
+                }
+            }
+
             else if (command == "join response") {
                 if (data["lobby leader"]) {
                     const start_game = document.createElement("BUTTON")
@@ -97,17 +109,17 @@
 
             }
 
-            else if (command == "add player") {
-                for (const index in data["players"]) {
-                    if (! game_started) {
-                        let player = data["players"][index]
-                        let username = player["username"]
+            else if (command == "disconnect player") {
+                let disconnected_player = data["player"]
+                document.getElementById(`row-${disconnected_player}`).remove()
+            }
 
-                        if (username != me.username) {
-                            add_player(username, player["colour"])
-                        }
-                    }
-                }
+            else if (command == "my turn") {
+                my_turn = true
+            }
+
+            else if (command == "end") {
+                victory()
             }
 
             else {

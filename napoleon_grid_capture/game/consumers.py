@@ -58,13 +58,33 @@ class GameConsumer(AsyncWebsocketConsumer):
 
 class MultiplayerConsumer(GameConsumer):
     async def disconnect(self, close_code):
+        # Let consumers know one user disconnected
+        await self.channel_layer.group_send(
+            self.game_id, 
+            {
+                'type' : 'send_packet',
+                'packet' : {
+                    'command' : 'disconnect player',
+                    'player' : self.username
+                }
+            }
+        )
+
+        # Remove player from game instance
+        self.game_inst.remove_player(self.username)
+
+        self.players.pop(self.username)
+
+        next_player_name = self.game_inst.current_player.username
+        next_player = self.players[next_player_name]
+
+        await next_player.send(text_data=json.dumps({"command" : "my turn"}))
+
         # Leave room group
         await self.channel_layer.group_discard(
             self.game_id,
             self.channel_name
         )
-
-        self.players.pop(self.username)
 
         if self.players == {}:
             self.channel_layer.game_groups.pop(self.game_id)
@@ -133,6 +153,16 @@ class MultiplayerConsumer(GameConsumer):
                     {
                         'type': 'send_packet',
                         'packet': move2
+                    }
+                )
+
+                await self.channel_layer.group_send(
+                    self.game_id,
+                    {
+                        'type': 'send_packet',
+                        'packet': {
+                            'command' : "end"
+                        }
                     }
                 )
 
