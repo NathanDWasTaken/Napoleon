@@ -70,24 +70,24 @@ class MultiplayerConsumer(GameConsumer):
             }
         )
 
-        # Remove player from game instance
-        self.game_inst.remove_player(self.username)
-
         self.players.pop(self.username)
 
-        next_player_name = self.game_inst.current_player.username
-        next_player = self.players[next_player_name]
+        if self.players == {}:
+            self.channel_layer.game_groups.pop(self.game_id)
+        else:
+            # Remove player from game instance
+            self.game_inst.remove_player(self.username)
 
-        await next_player.send(text_data=json.dumps({"command" : "my turn"}))
+            next_player_name = self.game_inst.current_player.username
+            next_player = self.players[next_player_name]
+
+            await next_player.send(text_data=json.dumps({"command" : "my turn"}))
 
         # Leave room group
         await self.channel_layer.group_discard(
             self.game_id,
             self.channel_name
         )
-
-        if self.players == {}:
-            self.channel_layer.game_groups.pop(self.game_id)
 
         if self.channel_layer.game_groups == {}:
             delattr(self.channel_layer, "game_groups")

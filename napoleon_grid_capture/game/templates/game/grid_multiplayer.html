@@ -2,10 +2,11 @@
 {% block connectivity %}
 <script type="text/javascript">
     let gameSocket = new WebSocket(`ws://${window.location.host}/ws/game/${game_id}/`);
-    let me = add_player(create_random_username(7), "red")
+    let me = add_player(create_random_username(7), "rgb(255, 0, 0)") 
 
     var my_turn = false
     game_started = false
+
 
     const multiplayer = true
 
@@ -27,15 +28,14 @@
             if (command == "add move") {
                 let player_colour = data["colour"]
 
-                let wall_colour = rgb_to_rgba(player_colour, "0,9")
-                let tile_colour = rgb_to_rgba(player_colour, "0,5")
+                let wall_colour = rgb_to_rgba(player_colour, "0.9")
+                let tile_colour = rgb_to_rgba(player_colour, "0.5")
 
                 for (const tile in data.tiles) {
                     const tile_id = data.tiles[tile]
 
                     const rect = document.getElementById(tile_id)
                     rect.setAttribute("fill", tile_colour)
-                    rect.setAttribute("opacity", "0.5")
                 }
 
                 if (data["wall"] != null) {
