@@ -3,23 +3,23 @@
 <html>
 <head>
     <meta charset="utf-8"/>
-    <title>Chat Rooms</title>
+    <title>Games</title>
 </head>
 <body>
-    What chat room would you like to enter?<br>
-    <input id="room-name-input" type="text" size="100"><br>
-    <input id="room-name-submit" type="button" value="Enter">
+    What game would you like to join?<br>
+    <input id="game-id-input" type="text" size="100"><br>
+    <input id="game-id-submit" type="button" value="Enter">
 
     <script>
-        document.querySelector('#room-name-input').focus();
-        document.querySelector('#room-name-input').onkeyup = function(e) {
+        document.querySelector('#game-id-input').focus();
+        document.querySelector('#game-id-input').onkeyup = function(e) {
             if (e.keyCode === 13) {  // enter, return
-                document.querySelector('#room-name-submit').click();
+                document.querySelector('#game-id-submit').click();
             }
         };
 
-        document.querySelector('#room-name-submit').onclick = function(e) {
-            var roomName = document.querySelector('#room-name-input').value;
+        document.querySelector('#game-id-submit').onclick = function(e) {
+            var roomName = document.querySelector('#game-id-input').value;
             window.location.pathname = '/game/' + roomName + '/';
         };
     </script>

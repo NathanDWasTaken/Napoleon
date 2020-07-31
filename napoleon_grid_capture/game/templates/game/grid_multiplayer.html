@@ -1,0 +1,133 @@
+{% extends "game/grid.html" %}
+{% block connectivity %}
+<script type="text/javascript">
+    let gameSocket = new WebSocket(`ws://${window.location.host}/ws/game/${game_id}/`);
+    let me = add_player(create_random_username(7), "rgb(255, 0, 0)") 
+
+    var my_turn = false
+    game_started = false
+
+
+    const multiplayer = true
+
+    gameSocket.onopen = function(e) {
+        gameSocket.send(JSON.stringify({
+            "command" : "join",
+            "width" : columns,
+            "height" : rows,
+            "player" : me.username,
+            "colour" : me.colour
+        }))
+        
+        
+        gameSocket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+
+            const command = data["command"]
+
+            if (command == "add move") {
+                let player_colour = data["colour"]
+
+                let wall_colour = rgb_to_rgba(player_colour, "0.9")
+                let tile_colour = rgb_to_rgba(player_colour, "0.5")
+
+                for (const tile in data.tiles) {
+                    const tile_id = data.tiles[tile]
+
+                    const rect = document.getElementById(tile_id)
+                    rect.setAttribute("fill", tile_colour)
+                }
+
+                if (data["wall"] != null) {
+                    const line = document.getElementById(data["wall"])
+                    let x1 = parseInt(line.getAttribute("x1"))
+                    let y1 = parseInt(line.getAttribute("y1"))
+                    let x2 = parseInt(line.getAttribute("x2"))
+                    let y2 = parseInt(line.getAttribute("y2"))
+
+                    
+
+                    const wall = add_line(x1, y1, x2, y2, id=`wall-${x1}-${y1}`, colour=wall_colour)
+                    wall.setAttribute("marked", "true")
+                    wall.setAttribute("stroke", wall_colour)
+                    line.remove()
+                    
+                    document.getElementById("grid").appendChild(wall)
+                }
+
+                try {
+                    for (const wall in data.remove_walls) {
+                        document.getElementById(data.remove_walls[wall]).remove()
+                    }
+                } catch {}
+
+                try {document.getElementById("highlighted").remove()} catch {}
+                
+                // Update player score in table
+                let player = players_dict[data["player"]]
+
+                player.score = data["score"]
+                document.getElementById(`score-${player.username}`).innerText = player.score
+
+                if (data["next player"] == me.username) {my_turn = true}
+                else {my_turn = false}
+            }
+
+            else if (command == "add player") {
+                for (const index in data["players"]) {
+                    if (! game_started) {
+                        let player = data["players"][index]
+                        let username = player["username"]
+
+                        if (username != me.username) {
+                            add_player(username, player["colour"])
+                        }
+                    }
+                }
+            }
+
+            else if (command == "join response") {
+                if (data["lobby leader"]) {
+                    const start_game = document.createElement("BUTTON")
+                    start_game.id = "start-game-btn"
+                    start_game.class = "btn btn-primary"
+                    start_game.innerHTML = "Start Game"
+                    start_game.onclick = function(e) {
+                        gameSocket.send(JSON.stringify({
+                            "command" : "start",
+                            "player" : me.username
+                        }))
+                    }
+                    document.getElementById("main-container").appendChild(start_game)
+                }
+            }
+
+            else if (command == "start response") {
+                game_started = true
+                my_turn = data["player turn"]
+                document.getElementById("start-game-btn").remove()
+
+            }
+
+            else if (command == "disconnect player") {
+                let disconnected_player = data["player"]
+                document.getElementById(`row-${disconnected_player}`).remove()
+            }
+
+            else if (command == "my turn") {
+                my_turn = true
+            }
+
+            else if (command == "end") {
+                victory()
+            }
+
+            else {
+                console.log(data)
+            }
+        };
+
+        createGrid()}   
+</script>
+
+{% endblock connectivity %}

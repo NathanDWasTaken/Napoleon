@@ -130,8 +130,8 @@ class Grid:
                 non_captured_tiles[0].out_of_game = 1
 
                 return {
+                    "outcome" : "end",
                     "tiles" : captured_tiles,
-                    "score" : None,
                     "tiles2" : non_captured_tiles
                 }
 
@@ -159,12 +159,16 @@ class Grid:
 
 
                 return {
+                    "outcome" : "tiles captured",
                     "tiles" : final_captured_tiles,
                     "score" : score
                 }
+            #This means no tile was captured
+            else:
+                return {"outcome" : "nothing captured"}
         else:
             print("Could not add wall")
-            return None
+            return "CannotAddWall"
 
 
 
@@ -250,8 +254,9 @@ class Grid:
 
 class Game:
     def __init__(self, grid=None):
-        """takes an optional grid instance (in case one doesn't wannt 8x8)"""
+        """takes an optional grid instance (in case one doesn't want 8x8)"""
         self.players = []
+        self.players_dict = {}
         if grid == None:
             grid = Grid()
         self.grid = grid
@@ -259,10 +264,24 @@ class Game:
         self.numberOfPlayers = 0
         self.moves = []
 
+
     def add_player(self, username):
+        player = Player(username, self.grid, self.numberOfPlayers)
+        self.players.append(player)
+        if self.numberOfPlayers == 0:
+            self.current_player = player
         self.numberOfPlayers += 1
 
-        self.players.append(Player(username, self.grid, self.numberOfPlayers))
+        self.players_dict[username] = player
+
+    def remove_player(self, username):
+        player = self.players_dict[username]
+
+        self.players.remove(player)
+
+        self.current_player = self.next_player()
+
+
 
     def next_player(self):
         return self.players[(self.counter + 1) % len(self.players)]
@@ -276,27 +295,37 @@ class Game:
         coord, direction = (int(wall_list[0]), int(wall_list[1])), wall_list[2]
 
         self.numberOfPlayers = len(self.players)
-        
-        player_rotation = self.counter % self.numberOfPlayers
-        current_player = self.players[player_rotation]
 
-        if current_player.username == player:
+        if self.current_player.username == player:
             result = self.grid.make_move(coord, direction)
 
-            if result != None:
-                if (score := result["score"]) == None:
-                    current_player.points += 1
+            if result != "CannotAddWall":
+                outcome = result["outcome"]
 
-                    next_player = self.next_player()
-                    next_player.points += 1
+                if outcome == "end":
+                    self.current_player.points += 1
+                    self.next_player().points += 1
 
-                    return result
 
-                current_player.points += score
+                elif outcome == "tiles captured":
+                    self.current_player.points += result["score"]
+                    result["total score"] = self.current_player.points
+
+                else:
+                    self.current_player = self.next_player()
+                    self.counter += 1
+                    return
+
+                self.current_player = self.next_player()
                 self.counter += 1
+
                 return result
         else:
-            print("It's not this player's turn")
+            print("It's not this player's turn:")
+            print("    User that sent the message:", player)
+            print("    User who's turn it is:", self.current_player.username)
+            print("    List of players:", [player.username for player in self.players])
+            return "InvalidTurn"
 
 
 class Player:
