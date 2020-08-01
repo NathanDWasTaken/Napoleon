@@ -345,7 +345,7 @@ class LocalConsumer(GameConsumer):
                     tile1_id = f"{tile1.x}-{tile1.y}"
 
                     move1 = {
-                        'command' : 'make move',
+                        'command' : 'add move',
                         'score' : player_inst.points,
                         'player' : player_name,
                         'colour' : data["colour"],
@@ -360,7 +360,7 @@ class LocalConsumer(GameConsumer):
                     next_player_name = data["next player"]
 
                     move2 = {
-                        'command' : 'make move',
+                        'command' : 'add move',
                         'score' : game_inst.players_dict[next_player_name].points,
                         'player' : next_player_name,
                         'colour' : data["next colour"],
@@ -391,7 +391,7 @@ class LocalConsumer(GameConsumer):
                                 remove_walls.append(f"{tile.x}-{tile.y}-{direction}")
 
             move = {
-                'command' : 'make move',
+                'command' : 'add move',
                 'score' : player_inst.points,
                 'player': player_name,
                 'colour' : data["colour"],
