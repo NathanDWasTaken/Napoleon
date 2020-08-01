@@ -265,14 +265,15 @@ class Game:
         self.moves = []
 
 
-    def add_player(self, username):
-        player = Player(username, self.grid, self.numberOfPlayers)
+    def add_player(self, username, colour):
+        player = Player(username, self.grid, colour)
         self.players.append(player)
         if self.numberOfPlayers == 0:
             self.current_player = player
         self.numberOfPlayers += 1
 
         self.players_dict[username] = player
+        return player
 
     def remove_player(self, username):
         player = self.players_dict[username]
@@ -329,8 +330,8 @@ class Game:
 
 
 class Player:
-    def __init__(self, username, grid, number):
+    def __init__(self, username, grid, colour):
         self.username = username
         self.grid = grid
         self.points = 0
-        self.number = number
+        self.colour = colour

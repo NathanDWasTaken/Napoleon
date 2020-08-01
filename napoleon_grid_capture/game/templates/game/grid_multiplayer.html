@@ -2,7 +2,7 @@
 {% block connectivity %}
 <script type="text/javascript">
     let gameSocket = new WebSocket(`ws://${window.location.host}/ws/game/${game_id}/`);
-    let me = add_player(create_random_username(7), "rgb(255, 0, 0)") 
+    let me = create_player(create_random_username(7), "rgb(255, 0, 0)") 
 
     var my_turn = false
     game_started = false
@@ -22,13 +22,12 @@
         
         gameSocket.onmessage = function(e) {
             const data = JSON.parse(e.data);
-
             const command = data["command"]
 
             if (command == "add move") {
                 let player_colour = data["colour"]
 
-                let wall_colour = rgb_to_rgba(player_colour, "0.9")
+                let wall_colour = player_colour
                 let tile_colour = rgb_to_rgba(player_colour, "0.5")
 
                 for (const tile in data.tiles) {
@@ -64,10 +63,7 @@
                 try {document.getElementById("highlighted").remove()} catch {}
                 
                 // Update player score in table
-                let player = players_dict[data["player"]]
-
-                player.score = data["score"]
-                document.getElementById(`score-${player.username}`).innerText = player.score
+                update_scoreboard(data["player"], data["score"])
 
                 if (data["next player"] == me.username) {my_turn = true}
                 else {my_turn = false}
@@ -79,9 +75,7 @@
                         let player = data["players"][index]
                         let username = player["username"]
 
-                        if (username != me.username) {
-                            add_player(username, player["colour"])
-                        }
+                        add_player(username, player["colour"])
                     }
                 }
             }
@@ -119,7 +113,7 @@
             }
 
             else if (command == "end") {
-                victory()
+                victory(data["results"])
             }
 
             else {
