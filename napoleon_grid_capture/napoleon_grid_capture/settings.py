@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     'channels',
     'game.apps.GameConfig',
     'menu.apps.MenuConfig',
+
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -70,7 +71,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'napoleon_grid_capture.wsgi.application'
+ASGI_APPLICATION = 'napoleon_grid_capture.asgi.application'
 
 
 # Database
@@ -126,7 +127,7 @@ STATICFILES_DIRS = (
     os.path.join(BASE_DIR, "static"),
 )
 
-ASGI_APPLICATION = 'napoleon_grid_capture.routing.application'
+ASGI_APPLICATION = 'napoleon_grid_capture.asgi.application'
 
 CHANNEL_LAYERS = {
     "default": {
