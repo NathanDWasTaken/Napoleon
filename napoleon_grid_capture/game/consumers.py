@@ -78,10 +78,19 @@ class MultiplayerConsumer(GameConsumer):
             # Remove player from game instance
             self.game_inst.remove_player(self.username)
 
+
             next_player_name = self.game_inst.current_player.username
             next_player = self.consumers[next_player_name]
 
-            await next_player.send(text_data=json.dumps({"command" : "my turn"}))
+            # If only one player left, make remaining player winner
+            if len(self.game_inst.players) == 1:
+                winner = self.game_inst.players[0]
+                await next_player.send(text_data=json.dumps({
+                    "command" : "last player",
+                    "results" : [(winner.username, winner.points)]
+                }))
+            else:
+                await next_player.send(text_data=json.dumps({"command" : "my turn"}))
 
         # Leave room group
         await self.channel_layer.group_discard(
@@ -182,6 +191,8 @@ class MultiplayerConsumer(GameConsumer):
                     'wall' : data['wall'],
                     'remove_walls' : [data["wall"]]
                 }
+
+                # Since there is now only a single tile left the last move is done automatically without the player
 
                 tile2 = result["tiles2"][0]
                 tile2_id = f"{tile2.x}-{tile2.y}"

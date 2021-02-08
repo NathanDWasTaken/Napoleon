@@ -181,6 +181,7 @@ function update_scoreboard(username, score) {
     document.getElementById("score-" + username).innerText = score;
 }
 function victory(player_results) {
+    game_over = true;
     var results = [];
     for (var index in player_results) {
         var tuple = player_results[index];

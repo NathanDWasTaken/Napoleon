@@ -23,7 +23,8 @@ variation_direction = {
     "n": (0, -1), (0, -1): "n", 
     "e": (1, 0), (1, 0): "e", 
     "s": (0, 1), (0, 1): "s", 
-    "w": (-1, 0), (-1, 0): "w"}
+    "w": (-1, 0), (-1, 0): "w"
+}
     
 opposite_direction = {"n" : "s", "e" : "w", "s" : "n", "w" : "e"}
 
@@ -45,7 +46,7 @@ class Border:
 
 class Wall(Border):
     def __init__(self, tile1, tile2):
-        tiles = [tile1, tile2]
+        self.tiles = [tile1, tile2]
 
 
 class Grid:
@@ -103,7 +104,7 @@ class Grid:
         return True
 
     def make_move(self, coord, direction):
-        """takes in address and direction, adds a wall there and checks whether that wall cut off any square"""
+        """takes in address/coordinates and direction, adds a wall there and checks whether that wall cut off any square"""
         wall_placed_successfully = self.add_wall(coord, direction)
 
         if wall_placed_successfully:
@@ -279,6 +280,7 @@ class Game:
         player = self.players_dict[username]
 
         self.players.remove(player)
+        del self.players_dict[username]
 
         self.current_player = self.next_player()
 
