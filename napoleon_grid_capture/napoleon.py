@@ -1,7 +1,6 @@
 # pos is a coordinate in the form (x, y)
 
 
-
 def subtract_2_addresses(coord1, coord2, operation="-"):
     """do operation element wise between coord1 and coord2"""
     difference = []
@@ -47,7 +46,7 @@ class Border:
 
 class Wall(Border):
     def __init__(self, tile1, tile2):
-        tiles = [tile1, tile2]
+        self.tiles = [tile1, tile2]
 
 
 class Grid:
@@ -187,33 +186,33 @@ class Grid:
             for tile in row:
                 yield tile
 
+    def direction_has_wall(self, tile, direction):
+        return isinstance(tile.walls[direction], Border)
+            
+
+    def getSurroundingCoords(self, x, y):
+        return (x, y - 1), (x + 1, y), (x, y + 1), (x - 1, y)
+
+
+    def is_valid_tile(self, current_tile, direction, next_tile):
+        # print(f"{(tile.x, tile.y)} --{direction}-> {next_tile}")
+
+        next_tile = self.get_tile(next_tile)
+
+        has_wall = self.direction_has_wall(current_tile, direction)
+        return not has_wall and self.is_valid_position((next_tile.x, next_tile.y)) and not next_tile.captured and not next_tile.out_of_game
+
     def flood_fill(self, addr):
         tile = self.get_tile(addr)
         tile.captured = True
 
-        def direction_has_wall(direction):
-            return isinstance(tile.walls[direction], Border)
-            
-
-        def getSurroundingCoords(x, y):
-            return (x, y - 1), (x + 1, y), (x, y + 1), (x - 1, y)
-
-
-        def is_valid_tile(direction, next_tile):
-            # print(f"{(tile.x, tile.y)} --{direction}-> {next_tile}")
-
-            next_tile = self.get_tile(next_tile)
-
-            has_wall = direction_has_wall(direction)
-            return not has_wall and self.is_valid_position((next_tile.x, next_tile.y)) and not next_tile.captured and not next_tile.out_of_game
-
         self.counter = 0
         x, y = addr
 
-        n, e, s, w = getSurroundingCoords(x, y)
+        n, e, s, w = self.getSurroundingCoords(x, y)
         
         for direction, coord in zip("nesw", (n, e, s, w)):
-            if is_valid_tile(direction, coord):
+            if self.is_valid_tile(tile, direction, coord):
                 self.flood_fill(coord)
         
 
@@ -252,7 +251,7 @@ class Grid:
 
 class Game:
     def __init__(self, grid=None, coord_system="normal"):
-        """takes an optional grid instance (in case one doesn't wannt 8x8) and the coordinate system, normal or programming. 
+        """takes an optional grid instance (in case one doesn't wannt 8x8) and the coordinate system, normal or programming.
             top left tile's coords:
                 'normal': (1, 1)
                 'programming': (0, 0)
@@ -262,7 +261,8 @@ class Game:
             grid = Grid()
         self.grid = grid
         self.counter = 0
-        self.system = coord_system
+        self.coord_system = coord_system
+        self.over = False
 
     def add_player(self, username):
         player_number = len(self.players) + 1
@@ -277,11 +277,16 @@ class Game:
 
         data = entry.split()
         try:
-            if self.system == "normal":
-                return (int(data[0]) - 1, int(data[1]) - 1), data[2]
+            # We get the x, y coordinates as well as the direction d
+            x, y, d = data
+            x, y = int(x), self.grid.height - int(y)
 
-            elif self.system == "programming":
-                return (int(data[0]), int(data[1])), data[2]
+
+            if self.coord_system == "normal":
+                return (x - 1, y), d
+
+            elif self.coord_system == "programming":
+                return (x, y - 1), d
                 
         except ValueError:
             print(f"The input is invalid: {entry}")
@@ -303,12 +308,16 @@ class Game:
 
             if direction in ["n", "e", "s", "w"]:
                 score = self.grid.make_move(addr, direction = direction, player_number = current_player.number)
+                # if a tile is returned, that means that it's the end of the game
                 if isinstance(score, Tile):
+                    last_tile = score
+                    self.over = True
+
                     current_player.points += 1
 
                     next_player = self.next_player()
                     next_player.points += 1
-                    score.out_of_game = next_player.number
+                    last_tile.out_of_game = next_player.number
 
                     self.grid.print_board()
                     print("Scores:")
@@ -318,6 +327,8 @@ class Game:
                 elif score != None:
                     current_player.points += score
                     self.counter += 1
+                elif score == None:
+                    print("Invalid wall, try again.")
 
 
 class Player:
@@ -326,3 +337,20 @@ class Player:
         self.grid = grid
         self.points = 0
         self.number = number
+
+
+# def minmax(position, depth=4, alpha=float("-inf"), beta=float("inf"), maximizingPlayer):
+#     if depth == 0 or 
+
+def Max_n(position, player, upper_bound, depth=3):
+    if depth == 0 or position.over:
+        return position.
+
+if __name__ == "__main__":
+    game = Game(Grid(4, 4))
+
+    game.add_player("Player 1")
+
+    game.add_player("Player 2")
+
+    game.play()
