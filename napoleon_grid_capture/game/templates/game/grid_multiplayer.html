@@ -1,6 +1,7 @@
 {% extends "game/grid.html" %}
 {% block connectivity %}
 <script type="text/javascript">
+
     let gameSocket = new WebSocket(`ws://${window.location.host}/ws/game/${game_id}/`);
     let me = create_player(create_random_username(7), "rgb(255, 0, 0)") 
 
@@ -11,6 +12,7 @@
 
     const multiplayer = true
 
+    // This code handles all the possible commands it can receive from the server
     gameSocket.onopen = function(e) {
         gameSocket.send(JSON.stringify({
             "command" : "join",

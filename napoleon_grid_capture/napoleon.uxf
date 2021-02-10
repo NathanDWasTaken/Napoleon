@@ -1,0 +1,15 @@
+<diagram program="umletino" version="14.4.0-SNAPSHOT"><zoom_level>10</zoom_level><help_text>Space for diagram notes</help_text><element><id>UMLPackage</id><coordinates><x>386</x><y>280</y><w>140</w><h>150</h></coordinates><panel_attributes>Join
+--
+command: join
+player: username
+colour: colour
+if game doesn't exist: {
+width: int
+height: int
+}
+bg=gray</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLPackage</id><coordinates><x>386</x><y>480</y><w>140</w><h>120</h></coordinates><panel_attributes>Join
+--
+command: join
+player: username
+colour: colour
+bg=gray</panel_attributes><additional_attributes></additional_attributes></element></diagram>

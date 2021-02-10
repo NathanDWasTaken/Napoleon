@@ -25,7 +25,11 @@ SECRET_KEY = os.environ.get("NapoleonSecretKey")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+# use: python manage.py runserver 192.168.178.93:8000
+ALLOWED_HOSTS = [
+    "192.168.178.93",
+    "127.0.0.1"
+]
 
 
 # Application definition

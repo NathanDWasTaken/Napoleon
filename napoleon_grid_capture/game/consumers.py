@@ -112,9 +112,9 @@ class MultiplayerConsumer(GameConsumer):
             self.colour = data["colour"]
 
             if not self.group["started"]:
+                # create game if it doesn't exist, else add player to game
                 if (game_inst := self.group["game_inst"]) == None:
-                    grid = Grid(width=data["width"], height=data["height"])
-                    game = Game(grid=grid)
+                    game = Game(grid=(data["width"], data["height"]))
                     game.add_player(self.username, self.colour)
                     self.group["game_inst"] = game
                     
@@ -343,8 +343,7 @@ class LocalConsumer(GameConsumer):
             
             # if game hasn't started
             elif not self.group["started"]:
-                grid = Grid(width=data["width"], height=data["height"])
-                game_inst = Game(grid=grid)
+                game_inst = Game(grid=(data["width"], data["height"]))
                 self.group["game_inst"] = game_inst
 
             self.players = []

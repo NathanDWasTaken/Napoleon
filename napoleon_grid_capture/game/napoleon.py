@@ -254,13 +254,14 @@ class Grid:
 
 
 class Game:
-    def __init__(self, grid=None):
+    def __init__(self, grid=(8, 8)):
         """takes an optional grid instance (in case one doesn't want 8x8)"""
         self.players = []
         self.players_dict = {}
-        if grid == None:
-            grid = Grid()
-        self.grid = grid
+
+        x, y = grid
+        self.grid = Grid(x, y)
+        
         self.counter = 0
         self.numberOfPlayers = 0
         self.moves = []
