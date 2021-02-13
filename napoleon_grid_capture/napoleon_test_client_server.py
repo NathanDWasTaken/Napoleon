@@ -35,9 +35,8 @@ class Tile:
         self.value = 0
         self.x = x
         self.y = y
-        self.out_of_game = False
-
-        self.visited  = False
+        self.captured = False
+        self.visited = False
         
         self.walls = {"n" : None, "e" : None, "s" : None, "w" : None}
 
@@ -117,7 +116,7 @@ class Grid:
         score = 0
 
         for tile in self.get_all_tiles():
-            if not tile.out_of_game:
+            if not tile.captured:
                 if tile.visited == True:
                     captured_tiles.append(tile)
                 else:
@@ -128,8 +127,8 @@ class Grid:
 
 
         if captured_len == non_captured_len == 1:
-            captured_tiles[0].out_of_game = 1
-            non_captured_tiles[0].out_of_game = 1
+            captured_tiles[0].captured = 1
+            non_captured_tiles[0].captured = 1
 
             return {
                 "outcome" : "end",
@@ -147,13 +146,13 @@ class Grid:
             # we only take away the smaller group of tiles
             if captured_len > non_captured_len:
                 for tile in non_captured_tiles:
-                    tile.out_of_game = 1
+                    tile.captured = 1
                 final_captured_tiles = non_captured_tiles
                 final_non_captured_tiles = captured_tiles
 
             else:
                 for tile in captured_tiles:
-                    tile.out_of_game = 1
+                    tile.captured = 1
                 final_captured_tiles = captured_tiles
                 final_non_captured_tiles = non_captured_tiles
 
@@ -219,7 +218,7 @@ class Grid:
             has_wall = self.direction_has_wall(tile, direction)
             
             # Check if next tile is valid and 
-            if self.is_valid_position(coord) and not has_wall and not next_tile.visited and not next_tile.out_of_game:
+            if self.is_valid_position(coord) and not has_wall and not next_tile.visited and not next_tile.captured:
                 self.flood_fill(coord)
 
     
@@ -237,8 +236,8 @@ class Grid:
         def print_vertical(row):
             print_row = "|"
             for tile in row:
-                if tile.out_of_game:
-                    captured = tile.out_of_game
+                if tile.captured:
+                    captured = tile.captured
                 else:
                     captured = 0
                 
@@ -318,7 +317,7 @@ class Game:
             if outcome == "end":
                 self.current_player.points += 1
                 self.next_player().points += 1
-                self.over = False
+                self.over = True
 
 
             elif outcome == "tiles captured":
@@ -385,6 +384,8 @@ class PlayerAI(Player):
         Player.__init__(self, game, username, colour)
         self.max_depth = depth
 
+        self.default_depth = 2
+
     def play(self):
         # coords, direction = self.Max_n_shallow(deepcopy(self.game), self, self.game.grid.no_total_tiles, self.max_depth)[1]
 
@@ -394,15 +395,29 @@ class PlayerAI(Player):
         # }
 
         # return self.game.play(data)
-        game_copy = deepcopy(self.game)
 
-        print(self.Max_n(game_copy, self))
+
+
+        game_copy = deepcopy(self.game)
+        result = self.Max_n(game_copy, self)
+        wall = result[1]
+
+        wall = f"{wall[0][0]}-{wall[0][1]}-{wall[1]}"
+
+        data = {
+            "player" : self.username,
+            "wall" : wall
+        }
+
+        return self.game.play(data)
+
+
 
         # print(self.minimax(deepcopy(self.game), 3, False))
 
     def minimax(self, position, depth, maximizingPlayer, alpha=float("-inf"), beta=float("+inf")):
         if depth == 0 or position.over:
-            return position.current_player.points
+            return position.current_player.points - position.next_player().points
 
         if maximizingPlayer:
             maxEval = float("-inf")
@@ -449,16 +464,28 @@ class PlayerAI(Player):
                             break
             return minEval
 
-    def Max_n(self, position, player, depth=2):
-        if depth == 0 or position.over:
-            return tuple([player.points for player in position.players])
 
-        current_best = [0] * len(position.players)
+    def Max_n(self, position, player, depth=None, _first_play=None):
+        # if no depth is given, just use the default depth (because it's not possible to give a class variable as optional variable)
+        if depth == None:
+            depth = self.default_depth
+
+        # our base case, in case the game is finished or 
+        if depth == 0 or position.over:
+            # position.grid.print_board()
+            player_scores = {player.username : player.points for player in position.players}
+            return player_scores, _first_play
+
+        current_best = [{player.username : -1 for player in position.players}, None]
+
 
         for tile in position.grid.tiles_left:
             for direction in ["n", "e"]:
                 if tile.walls[direction] == None:
                     new_position = deepcopy(position)
+
+                    if depth == self.default_depth:
+                        _first_play = ((tile.x, tile.y), direction)
 
                     data = {
                     "player" : player.username,
@@ -466,23 +493,30 @@ class PlayerAI(Player):
                     }
 
                     new_position.play(data)
+                    # new_position.grid.print_board()
 
-                    current = self.Max_n(new_position, new_position.current_player, depth - 1)
-                    if current[player.number] > current_best[player.number]:
+                    current = self.Max_n(new_position, new_position.current_player, depth - 1, _first_play)
+                    # if current player's points are more than before, or if the current and best are the same points, minimize opponent's points
+                    current_player_score = current[0][player.username]
+                    current_best_player_score = current_best[0][player.username]
+
+                    opponents_current_sum = sum(current[0].values()) - current_player_score
+                    opponents_best_sum = sum(current_best[0].values()) - current_best_player_score
+
+                    if current_player_score > current_best_player_score or (current_player_score == current_best_player_score and opponents_current_sum < opponents_best_sum):
                         current_best = current
-        return current_best
 
+        return current_best
 
 
     def Max_n_shallow(self, position, player, upper_bound, depth=3, _initial_play=None):
         """position -> instance of Game, player -> instance of Player, upper_bound -> max amount of points someone could get (all tiles), depth -> how deep the algorithm goes"""
         if depth == 0 or position.over:
             #position.grid.print_board()
-            return [tuple([player.points for player in position.players]), _initial_play]
+            return [player.points for player in position.players], _initial_play
         tiles_left = position.grid.tiles_left
         
-        next_player = position.next_player()
-        best = "first"
+        current_best = [[0] * len(position.players), None]
 
         # For each child
         for tile in tiles_left:
@@ -505,26 +539,24 @@ class PlayerAI(Player):
                     # game_copy.grid.print_board()
 
                     # If child is first child
-                    if best == "first":
-                        best = self.Max_n_shallow(game_copy, next_player, upper_bound, depth - 1, _initial_play)
-                    elif best[0][player.number] >= upper_bound:
-                        return best
-                    current = self.Max_n_shallow(game_copy, next_player, upper_bound - best[0][player.number], depth - 1, _initial_play)
-                    if current[0][player.number] > best[0][player.number]:
-                        best = current
-        return best
+                    if current_best[0][player.number] >= upper_bound:
+                        return current_best
+                    current = self.Max_n_shallow(game_copy, game_copy.current_player, upper_bound - current_best[0][player.number], depth - 1, _initial_play)
+                    if current[0][player.number] > current_best[0][player.number]:
+                        current_best = current
+        return current_best
 
             
 if __name__ == "__main__":
     def local_game():
-        n = 2
-        game = Game((n, 3))
+        n = 4
+        game = Game((n, n))
 
         player_1 = LocalPlayer(game, "Nathan", "red")
         player_2 = PlayerAI(game, "Max", "blue")
 
-        game.add_player(player_2)
         game.add_player(player_1)
+        game.add_player(player_2)
 
         player_id = len(game.players)
             
