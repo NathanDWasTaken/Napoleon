@@ -1,5 +1,6 @@
 # pos is a coordinate in the form (x, y)
 from copy import deepcopy
+from random import choice
 
 
 def subtract_2_addresses(coord1, coord2, operation="-"):
@@ -77,6 +78,9 @@ class Grid:
                     row.append(tile)
                 self.grid.append(row)
 
+            n_of_moves = height * (width - 1) + width * (height - 1)
+            print(n_of_moves)
+
         else:
             print("Both grid dimensions have to be bigger than 1")
 
@@ -98,7 +102,7 @@ class Grid:
         tile1 = self.get_tile(coord1)
         tile2 = self.get_tile(coord2)
 
-        if tile1.walls[direction] == tile2.walls[opposite_direction[direction]] == None:
+        if not (tile1.captured or tile2.captured) and tile1.walls[direction] == tile2.walls[opposite_direction[direction]] == None:
             wall = Wall(tile1, tile2)
             tile1.walls[direction] = wall
             tile2.walls[opposite_direction[direction]] = wall
@@ -352,6 +356,14 @@ class Game:
             print(f"The input is invalid: {entry}")
             return self.input_to_coords(name, number)
             
+    def coords_to_input(self, coords):
+        """Turn game coordinates into easily readable coords:
+        in 4xn:
+        start:  top left (0,0)          bottom left (1,1)
+                    0 0 e        -->        1 4 e 
+                    0 3 n        -->        1 1 n
+        """
+        
 
 
 class Player:
@@ -374,6 +386,7 @@ class LocalPlayer(Player):
         result = self.game.play(data)
         if result["outcome"] == "CouldNotAddWall":
             print("Invalid Coords, couldn't add wall!")
+            self.grid.print_board()
             self.play()
 
         return result
@@ -397,10 +410,10 @@ class PlayerAI(Player):
         # return self.game.play(data)
 
 
-
+        print(f"{self.username} ({self.number}): ", end="")
         game_copy = deepcopy(self.game)
         result = self.Max_n(game_copy, self)
-        wall = result[1]
+        wall = result[1][0]
 
         wall = f"{wall[0][0]}-{wall[0][1]}-{wall[1]}"
 
@@ -408,62 +421,13 @@ class PlayerAI(Player):
             "player" : self.username,
             "wall" : wall
         }
+        print()
 
         return self.game.play(data)
 
 
 
         # print(self.minimax(deepcopy(self.game), 3, False))
-
-    def minimax(self, position, depth, maximizingPlayer, alpha=float("-inf"), beta=float("+inf")):
-        if depth == 0 or position.over:
-            return position.current_player.points - position.next_player().points
-
-        if maximizingPlayer:
-            maxEval = float("-inf")
-            for tile in position.grid.tiles_left:
-                for direction in ["n", "e"]:
-                    # If there is no wall at the spot
-                    if tile.walls[direction] == None:
-                        game_copy = deepcopy(position)
-
-                        data = {
-                        "player" : game_copy.current_player.username,
-                        "wall" : f"{tile.x}-{tile.y}-{direction}"
-                        }
-
-                        game_copy.play(data)
-
-                        eval = self.minimax(game_copy, depth - 1, False, alpha, beta)
-                        maxEval = max(maxEval, eval)
-                        alpha = max(alpha, eval)
-                        if beta <= alpha:
-                            break
-
-            return maxEval
-
-        else:
-            minEval = float("+inf")
-            for tile in position.grid.tiles_left:
-                for direction in ["n", "e"]:
-                    # If there is no wall at the spot
-                    if tile.walls[direction] == None:
-                        game_copy = deepcopy(position)
-
-                        data = {
-                        "player" : game_copy.current_player.username,
-                        "wall" : f"{tile.x}-{tile.y}-{direction}"
-                        }
-
-                        game_copy.play(data)
-
-                        eval = self.minimax(game_copy, depth - 1, True, alpha, beta)
-                        minEval = min(minEval, eval)
-                        beta = min(beta, eval)
-                        if beta <= alpha:
-                            break
-            return minEval
-
 
     def Max_n(self, position, player, depth=None, _first_play=None):
         # if no depth is given, just use the default depth (because it's not possible to give a class variable as optional variable)
@@ -474,10 +438,10 @@ class PlayerAI(Player):
         if depth == 0 or position.over:
             # position.grid.print_board()
             player_scores = {player.username : player.points for player in position.players}
-            return player_scores, _first_play
+            return player_scores, [_first_play]
 
-        current_best = [{player.username : -1 for player in position.players}, None]
-
+        current_best = [{player.username : -1 for player in position.players}, [None]]
+        
 
         for tile in position.grid.tiles_left:
             for direction in ["n", "e"]:
@@ -500,13 +464,15 @@ class PlayerAI(Player):
                     current_player_score = current[0][player.username]
                     current_best_player_score = current_best[0][player.username]
 
-                    opponents_current_sum = sum(current[0].values()) - current_player_score
-                    opponents_best_sum = sum(current_best[0].values()) - current_best_player_score
+                    current_opponents_sum = sum(current[0].values()) - current_player_score
+                    current_best_opponents_sum = sum(current_best[0].values()) - current_best_player_score
 
-                    if current_player_score > current_best_player_score or (current_player_score == current_best_player_score and opponents_current_sum < opponents_best_sum):
+                    if current_player_score > current_best_player_score or (current_player_score == current_best_player_score and current_opponents_sum < current_best_opponents_sum):
                         current_best = current
+                    elif current_player_score == current_best_player_score and current_opponents_sum == current_best_opponents_sum and _first_play not in current_best[1]:
+                        current_best[1].append(_first_play)
 
-        return current_best
+        return [current_best[0], [choice(current_best[1])]]
 
 
     def Max_n_shallow(self, position, player, upper_bound, depth=3, _initial_play=None):
@@ -533,7 +499,7 @@ class PlayerAI(Player):
                     "wall" : f"{tile.x}-{tile.y}-{direction}"
                     }
 
-                    result = game_copy.play(data)
+                    game_copy.play(data)
 
                     #print("    " * (3 - depth) + f"{player.number} Trying:", data["wall"])
                     # game_copy.grid.print_board()
@@ -554,9 +520,11 @@ if __name__ == "__main__":
 
         player_1 = LocalPlayer(game, "Nathan", "red")
         player_2 = PlayerAI(game, "Max", "blue")
+        player_3 = PlayerAI(game, "MaximilianMus", "black")
 
         game.add_player(player_1)
         game.add_player(player_2)
+        # game.add_player(player_3)
 
         player_id = len(game.players)
             
