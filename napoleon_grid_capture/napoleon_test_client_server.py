@@ -1,6 +1,8 @@
 # pos is a coordinate in the form (x, y)
 from copy import deepcopy
 from random import choice
+from time import time
+from math import ceil
 
 
 def subtract_2_addresses(coord1, coord2, operation="-"):
@@ -78,8 +80,8 @@ class Grid:
                     row.append(tile)
                 self.grid.append(row)
 
-            n_of_moves = height * (width - 1) + width * (height - 1)
-            print(n_of_moves)
+            self.total_n_of_moves = height * (width - 1) + width * (height - 1)
+            print(f"All possible amount of moves:", self.total_n_of_moves)
 
         else:
             print("Both grid dimensions have to be bigger than 1")
@@ -356,14 +358,15 @@ class Game:
             print(f"The input is invalid: {entry}")
             return self.input_to_coords(name, number)
             
-    def coords_to_input(self, coords):
+    def coords_to_input(self, x, y, d):
         """Turn game coordinates into easily readable coords:
         in 4xn:
         start:  top left (0,0)          bottom left (1,1)
                     0 0 e        -->        1 4 e 
                     0 3 n        -->        1 1 n
         """
-        
+        x, y = x + 1, self.grid.height - y
+        return " ".join([str(x), str(y), d])
 
 
 class Player:
@@ -393,51 +396,54 @@ class LocalPlayer(Player):
 
 
 class PlayerAI(Player):
-    def __init__(self, game, username, colour, depth=3):
+    def __init__(self, game, username, colour):
         Player.__init__(self, game, username, colour)
-        self.max_depth = depth
-
-        self.default_depth = 2
+        self.calculations = 0
 
     def play(self):
-        # coords, direction = self.Max_n_shallow(deepcopy(self.game), self, self.game.grid.no_total_tiles, self.max_depth)[1]
-
-        # data = {
-        #     "player" : self.username,
-        #     "wall" : f"{coords[0]}-{coords[1]}-{direction}"
-        # }
-
-        # return self.game.play(data)
-
-
+        start_time = time()
         print(f"{self.username} ({self.number}): ", end="")
         game_copy = deepcopy(self.game)
+
+        # odd number of depth is counter productive, since the AI will try to maximize it's gains, no matter what the opponent gets.
+        # If the only way to get 1 tile is by giving the opponent half the board, the AI will do so.
+        self.depth = ceil(  (   (len(self.game.moves) * 1.5) / self.grid.total_n_of_moves) * 2) + 2
+
         result = self.Max_n(game_copy, self)
+        # result = self.Max_n_shallow(game_copy, self, ceil(self.grid.width * self.grid.height / 2))
+
         wall = result[1][0]
 
-        wall = f"{wall[0][0]}-{wall[0][1]}-{wall[1]}"
+        x = wall[0][0]
+        y = wall[0][1]
+        d = wall[1]
+
+        wall = f"{x}-{y}-{d}"
 
         data = {
             "player" : self.username,
             "wall" : wall
         }
-        print()
+
+        print(self.game.coords_to_input(x, y, d))
+        time_it_took = time() - start_time
+        print(f"It took {time_it_took}s")
+
+        print(self.calculations, "calculations")
+        self.calculations = 0
 
         return self.game.play(data)
 
-
-
-        # print(self.minimax(deepcopy(self.game), 3, False))
-
-    def Max_n(self, position, player, depth=None, _first_play=None):
+    def Max_n_shallow(self, position, player, upper_bound, depth=None, _first_play=None):
         # if no depth is given, just use the default depth (because it's not possible to give a class variable as optional variable)
         if depth == None:
-            depth = self.default_depth
+            depth = self.depth
 
         # our base case, in case the game is finished or 
         if depth == 0 or position.over:
             # position.grid.print_board()
             player_scores = {player.username : player.points for player in position.players}
+            self.calculations += 1
             return player_scores, [_first_play]
 
         current_best = [{player.username : -1 for player in position.players}, [None]]
@@ -448,7 +454,7 @@ class PlayerAI(Player):
                 if tile.walls[direction] == None:
                     new_position = deepcopy(position)
 
-                    if depth == self.default_depth:
+                    if depth == self.depth:
                         _first_play = ((tile.x, tile.y), direction)
 
                     data = {
@@ -459,7 +465,10 @@ class PlayerAI(Player):
                     new_position.play(data)
                     # new_position.grid.print_board()
 
-                    current = self.Max_n(new_position, new_position.current_player, depth - 1, _first_play)
+                    if current_best[0][player.username] >= upper_bound:
+                        return current_best
+
+                    current = self.Max_n_shallow(new_position, new_position.current_player, upper_bound - current_best[0][player.username], depth - 1, _first_play)
                     # if current player's points are more than before, or if the current and best are the same points, minimize opponent's points
                     current_player_score = current[0][player.username]
                     current_best_player_score = current_best[0][player.username]
@@ -473,45 +482,6 @@ class PlayerAI(Player):
                         current_best[1].append(_first_play)
 
         return [current_best[0], [choice(current_best[1])]]
-
-
-    def Max_n_shallow(self, position, player, upper_bound, depth=3, _initial_play=None):
-        """position -> instance of Game, player -> instance of Player, upper_bound -> max amount of points someone could get (all tiles), depth -> how deep the algorithm goes"""
-        if depth == 0 or position.over:
-            #position.grid.print_board()
-            return [player.points for player in position.players], _initial_play
-        tiles_left = position.grid.tiles_left
-        
-        current_best = [[0] * len(position.players), None]
-
-        # For each child
-        for tile in tiles_left:
-            for direction in ["n", "e"]:
-                wall = tile.walls[direction]
-                if wall == None:
-                    game_copy = deepcopy(position)
-
-                    if depth == self.max_depth:
-                        _initial_play = ((tile.x, tile.y), direction)
-
-                    data = {
-                    "player" : player.username,
-                    "wall" : f"{tile.x}-{tile.y}-{direction}"
-                    }
-
-                    game_copy.play(data)
-
-                    #print("    " * (3 - depth) + f"{player.number} Trying:", data["wall"])
-                    # game_copy.grid.print_board()
-
-                    # If child is first child
-                    if current_best[0][player.number] >= upper_bound:
-                        return current_best
-                    current = self.Max_n_shallow(game_copy, game_copy.current_player, upper_bound - current_best[0][player.number], depth - 1, _initial_play)
-                    if current[0][player.number] > current_best[0][player.number]:
-                        current_best = current
-        return current_best
-
             
 if __name__ == "__main__":
     def local_game():
@@ -522,8 +492,8 @@ if __name__ == "__main__":
         player_2 = PlayerAI(game, "Max", "blue")
         player_3 = PlayerAI(game, "MaximilianMus", "black")
 
-        game.add_player(player_1)
         game.add_player(player_2)
+        game.add_player(player_1)
         # game.add_player(player_3)
 
         player_id = len(game.players)
