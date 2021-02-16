@@ -16,5 +16,4 @@ def local_redirect(request):
     return redirect(f"/game/local/{create_uuid()}/")
 
 def game_selection(request):
-    return redirect(f"{create_uuid()}/")
-    # return render(request, "game/index.html")
+    return redirect(f"online/{create_uuid()}/")

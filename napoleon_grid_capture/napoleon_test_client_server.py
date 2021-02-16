@@ -475,8 +475,7 @@ class PlayerAI(Player):
                     current_opponents_sum = sum(current[0].values()) - current_player_score
                     current_best_opponents_sum = sum(current_best[0].values()) - current_best_player_score
 
-                    # maybe change whole evaluation to 
-                    #       if (current_opponents_sum < current_best_opponents_sum):
+                    # check Ipad for improvement ideas
                     if current_player_score > current_best_player_score or (current_player_score == current_best_player_score and current_opponents_sum < current_best_opponents_sum):
                         current_best = current
                     elif current_player_score == current_best_player_score and current_opponents_sum == current_best_opponents_sum and _first_play not in current_best[1]:
