@@ -407,10 +407,9 @@ class PlayerAI(Player):
 
         # odd number of depth is counter productive, since the AI will try to maximize it's gains, no matter what the opponent gets.
         # If the only way to get 1 tile is by giving the opponent half the board, the AI will do so.
-        self.depth = ceil(  (   (len(self.game.moves) * 1.5) / self.grid.total_n_of_moves) * 2) + 2
+        self.depth = round(  (   (len(self.game.moves) * 1.5) / self.grid.total_n_of_moves)) * 2 + 2
 
-        result = self.Max_n(game_copy, self)
-        # result = self.Max_n_shallow(game_copy, self, ceil(self.grid.width * self.grid.height / 2))
+        result = self.Max_n_shallow(game_copy, self, ceil(self.grid.width * self.grid.height / 2))
 
         wall = result[1][0]
 
@@ -446,7 +445,7 @@ class PlayerAI(Player):
             self.calculations += 1
             return player_scores, [_first_play]
 
-        current_best = [{player.username : -1 for player in position.players}, [None]]
+        current_best = [{player.username : -1 for player in position.players}, []]
         
 
         for tile in position.grid.tiles_left:
@@ -476,6 +475,8 @@ class PlayerAI(Player):
                     current_opponents_sum = sum(current[0].values()) - current_player_score
                     current_best_opponents_sum = sum(current_best[0].values()) - current_best_player_score
 
+                    # maybe change whole evaluation to 
+                    #       if (current_opponents_sum < current_best_opponents_sum):
                     if current_player_score > current_best_player_score or (current_player_score == current_best_player_score and current_opponents_sum < current_best_opponents_sum):
                         current_best = current
                     elif current_player_score == current_best_player_score and current_opponents_sum == current_best_opponents_sum and _first_play not in current_best[1]:
@@ -485,7 +486,7 @@ class PlayerAI(Player):
             
 if __name__ == "__main__":
     def local_game():
-        n = 4
+        n = 6
         game = Game((n, n))
 
         player_1 = LocalPlayer(game, "Nathan", "red")
