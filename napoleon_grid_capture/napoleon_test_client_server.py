@@ -2,7 +2,7 @@
 from copy import deepcopy
 from random import choice
 from time import time
-from math import ceil
+from math import floor
 
 
 def subtract_2_addresses(coord1, coord2, operation="-"):
@@ -127,11 +127,12 @@ class Grid:
                     captured_tiles.append(tile)
                 else:
                     non_captured_tiles.append(tile)
+                tile.visited = False
         
         captured_len = len(captured_tiles)
         non_captured_len = len(non_captured_tiles)
 
-
+        # if there is only oe captured and 1 non captured tile, then that means that those were the last 2 tiles.
         if captured_len == non_captured_len == 1:
             captured_tiles[0].captured = 1
             non_captured_tiles[0].captured = 1
@@ -141,9 +142,7 @@ class Grid:
                 "tiles" : captured_tiles,
                 "tiles2" : non_captured_tiles
             }
-
-        for tile in self.get_all_tiles():
-            tile.visited = False
+            
 
         # We make sure that the amount of captured tiles isn't the same as the amount left in the game, which would mean that none got captured since all tiles are accessible
         if captured_len != self.no_tiles_left:
@@ -409,7 +408,7 @@ class PlayerAI(Player):
         # If the only way to get 1 tile is by giving the opponent half the board, the AI will do so.
         self.depth = round(  (   (len(self.game.moves) * 1.5) / self.grid.total_n_of_moves)) * 2 + 2
 
-        result = self.Max_n_shallow(game_copy, self, ceil(self.grid.width * self.grid.height / 2))
+        result = self.Max_n_shallow(game_copy, self, floor(self.grid.width * self.grid.height / 2) + 1)
 
         wall = result[1][0]
 
@@ -433,19 +432,28 @@ class PlayerAI(Player):
 
         return self.game.play(data)
 
+    def get_difference(self, scores, player):
+        temp_dict = {k: scores[k] for k in scores.keys() - {player.username}}
+        current_max_opponent_points = max(temp_dict.values())
+
+        return scores[player.username] - current_max_opponent_points
+
     def Max_n_shallow(self, position, player, upper_bound, depth=None, _first_play=None):
         # if no depth is given, just use the default depth (because it's not possible to give a class variable as optional variable)
         if depth == None:
             depth = self.depth
 
-        # our base case, in case the game is finished or 
+        # our base case, in case the game is finished or the max depth has been reached
         if depth == 0 or position.over:
-            # position.grid.print_board()
             player_scores = {player.username : player.points for player in position.players}
+
             self.calculations += 1
             return player_scores, [_first_play]
 
-        current_best = [{player.username : -1 for player in position.players}, []]
+        area = self.grid.height * self.grid.width
+        current_best = [{player_iter.username : 0 if player_iter.username == player.username else area for player_iter in position.players}, []]
+
+        username = player.username
         
 
         for tile in position.grid.tiles_left:
@@ -457,35 +465,35 @@ class PlayerAI(Player):
                         _first_play = ((tile.x, tile.y), direction)
 
                     data = {
-                    "player" : player.username,
+                    "player" : username,
                     "wall" : f"{tile.x}-{tile.y}-{direction}"
                     }
 
                     new_position.play(data)
                     # new_position.grid.print_board()
 
-                    if current_best[0][player.username] >= upper_bound:
+                    if current_best[0][username] >= upper_bound:
                         return current_best
 
-                    current = self.Max_n_shallow(new_position, new_position.current_player, upper_bound - current_best[0][player.username], depth - 1, _first_play)
+                    current = self.Max_n_shallow(new_position, new_position.current_player, upper_bound - current_best[0][username], depth - 1, _first_play)
                     # if current player's points are more than before, or if the current and best are the same points, minimize opponent's points
-                    current_player_score = current[0][player.username]
-                    current_best_player_score = current_best[0][player.username]
+                    current_player_score = current[0][username]
+                    current_best_player_score = current_best[0][username]
 
-                    current_opponents_sum = sum(current[0].values()) - current_player_score
-                    current_best_opponents_sum = sum(current_best[0].values()) - current_best_player_score
+                    current_difference = self.get_difference(current[0], player)
+                    best_difference = self.get_difference(current_best[0], player)
 
                     # check Ipad for improvement ideas
-                    if current_player_score > current_best_player_score or (current_player_score == current_best_player_score and current_opponents_sum < current_best_opponents_sum):
+                    if current_difference > best_difference or (current_difference == best_difference and current_player_score > current_best_player_score):
                         current_best = current
-                    elif current_player_score == current_best_player_score and current_opponents_sum == current_best_opponents_sum and _first_play not in current_best[1]:
+                    elif current_difference == best_difference:
                         current_best[1].append(_first_play)
 
         return [current_best[0], [choice(current_best[1])]]
             
 if __name__ == "__main__":
     def local_game():
-        n = 6
+        n = 4
         game = Game((n, n))
 
         player_1 = LocalPlayer(game, "Nathan", "red")
