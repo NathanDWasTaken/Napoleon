@@ -4,7 +4,9 @@ from .napoleon import Game, Grid, Border
 
 class GameConsumer(AsyncWebsocketConsumer):
     async def connect(self):
+        print(self.scope)
         self.game_id = self.scope['url_route']['kwargs']['game_id']
+        print(self.game_id)
 
         # Join room group
         await self.channel_layer.group_add(
