@@ -12,28 +12,6 @@ class InvalidTurn(Exception):
     pass
 
 
-
-
-# Inaccurate name, I know.
-def get_coord_using_difference(coord1, coord2, operation="-"):
-    """comparable to applying a vector to a point in geometry. 
-    We use the starting point and the displacement (found in variation_direction) to get the second point (coord)"""
-    difference = []
-
-    for element2, element1 in zip(coord2, coord1):
-        if operation == "-":
-            result = element2 - element1
-        elif operation == "+":
-            result = element2 + element1
-
-        difference.append(result)
-
-    return tuple(difference)
-
-# returns either:
-# - the variation of coordinate when going a certain direction
-# - the direction for a certain variation in coords
-
 # east -> x + 1 | x + 1 -> east
 variation_direction = {
     "n": (0, -1), (0, -1): "n", 
@@ -41,6 +19,30 @@ variation_direction = {
     "s": (0, 1), (0, 1): "s", 
     "w": (-1, 0), (-1, 0): "w"
 }
+
+# Inaccurate name, I know.
+def get_coord_using_difference(coord1, coord2, operation="+"):
+    """comparable to applying a vector to a point in geometry. 
+    We use the starting point and the displacement (found in variation_direction) to get the second point (coord)"""
+    difference = []
+
+    for element2, element1 in zip(coord2, coord1):
+        if operation == "+":
+            result = element2 + element1
+        elif operation == "-":
+            result = element2 - element1
+
+        difference.append(result)
+
+    return tuple(difference)
+# returns either:
+# - the variation of coordinate when going a certain direction
+# - the direction for a certain variation in coords
+
+def get_coord_using_direction(coord, direction):
+    return get_coord_using_difference(coord, variation_direction[direction])
+
+
     
 opposite_direction = {"n" : "s", "e" : "w", "s" : "n", "w" : "e"}
 
@@ -49,14 +51,15 @@ class Tile:
         self.x = x
         self.y = y
         self.captured = False
-        self.visited = False
+        self.visited_flood_fill = False
+        self.visited_AI = False
         
         self.walls = {"n" : None, "e" : None, "s" : None, "w" : None}
 
     def __deepcopy__(self, memodict={}):
         tile = Tile(self.x, self.y)
         tile.captured = self.captured
-        tile.visited = self.visited
+        tile.visited_flood_fill = self.visited_flood_fill
 
         tile.walls = copy(self.walls)
 
@@ -104,14 +107,13 @@ class Grid:
     def add_wall(self, coord1, direction):
         """adds a wall to the tile object if it doesn't have one yet"""
 
-        if not self.is_valid_position(coord1):
+        if not self.is_valid_coord(coord1):
             print("Address 1 is invalid:", coord1)
             return False
 
-        variation = variation_direction[direction]
-        coord2 = get_coord_using_difference(coord1, variation, operation="+")
+        coord2 = get_coord_using_direction(coord1, direction)
 
-        if not self.is_valid_position(coord2):
+        if not self.is_valid_coord(coord2):
             print("Address 2 is invalid:", coord2)
             return False
 
@@ -127,7 +129,7 @@ class Grid:
 
         return False
 
-    def apply_flood_fill(self, coord):
+    def apply_flood_fill(self, coord, player_number):
         self.flood_fill(coord)
 
         non_captured_tiles = []
@@ -137,20 +139,17 @@ class Grid:
 
         for tile in self.get_all_tiles():
             if not tile.captured:
-                if tile.visited == True:
+                if tile.visited_flood_fill == True:
                     captured_tiles.append(tile)
                 else:
                     non_captured_tiles.append(tile)
-                tile.visited = False
+                tile.visited_flood_fill = False
         
         captured_len = len(captured_tiles)
         non_captured_len = len(non_captured_tiles)
 
         # if there is only oe captured and 1 non captured tile, then that means that those were the last 2 tiles.
         if captured_len == non_captured_len == 1:
-            captured_tiles[0].captured = 1
-            non_captured_tiles[0].captured = 1
-
             return {
                 "outcome" : "end",
                 "tiles" : captured_tiles,
@@ -164,14 +163,10 @@ class Grid:
 
             # we only take away the smaller group of tiles
             if captured_len > non_captured_len:
-                for tile in non_captured_tiles:
-                    tile.captured = 1
                 final_captured_tiles = non_captured_tiles
                 final_non_captured_tiles = captured_tiles
 
             else:
-                for tile in captured_tiles:
-                    tile.captured = 1
                 final_captured_tiles = captured_tiles
                 final_non_captured_tiles = non_captured_tiles
 
@@ -189,15 +184,15 @@ class Grid:
             return {"outcome" : "nothing captured"}
 
 
-    def is_valid_position(self, addr):
+    def is_valid_coord(self, addr):
         """returns whether the given address is in the grid bounds"""
         if addr != None:
             return 0 <= addr[0] <= self.width - 1 and 0 <= addr[1] <= self.height - 1
 
-    def get_tile(self, pos):
+    def get_tile(self, coord):
         """returns the tile object for a given address, if the address is valid"""
-        x, y = pos
-        if self.is_valid_position(pos):
+        x, y = coord
+        if self.is_valid_coord(coord):
             return self.grid[y][x]
         
     def get_all_tiles(self):
@@ -214,7 +209,7 @@ class Grid:
 
     def flood_fill(self, addr):
         tile = self.get_tile(addr)
-        tile.visited = True
+        tile.visited_flood_fill = True
 
         self.player_turn_counter = 0
         x, y = addr
@@ -226,7 +221,7 @@ class Grid:
             has_wall = self.direction_has_wall(tile, direction)
             
             # Check if next tile is valid and 
-            if self.is_valid_position(coord) and not has_wall and not next_tile.visited and not next_tile.captured:
+            if self.is_valid_coord(coord) and not has_wall and not next_tile.visited_flood_fill and not next_tile.captured:
                 self.flood_fill(coord)
 
     
@@ -285,6 +280,7 @@ class Game:
         if len(self.players) == 0:
             self.current_player = player
         self.players.append(player)
+        player.number = len(self.players)
 
         self.players_dict[player.username] = player
         return player
@@ -328,7 +324,7 @@ class Game:
             if not self.grid.add_wall(coord, direction):
                 return {"outcome" : "CouldNotAddWall"}
 
-            result = self.grid.apply_flood_fill(coord)
+            result = self.grid.apply_flood_fill(coord, self.current_player.number)
 
             if result["outcome"] == "CouldNotAddWall":
                 # {"outcome" : "CouldNotAddWall"}
@@ -338,11 +334,19 @@ class Game:
 
             if outcome == "end":
                 self.current_player.points += 1
-                self.next_player().points += 1
+                result["tiles"][0].captured = self.current_player.number
+
+                next_player = self.next_player()
+                next_player.points += 1
+                result["tiles2"][0].captured = next_player.number
+
                 self.over = True
 
 
             elif outcome == "tiles captured":
+                for tile in result["tiles"]:
+                    tile.captured = self.current_player.number
+
                 self.current_player.points += result["score"]
                 result["total score"] = self.current_player.points
 
@@ -450,7 +454,7 @@ class PlayerAI(Player):
         depth = 2
         max_moves = 250000
         current_moves = 0
-        while depth < 30:
+        while depth < 15:
             current_moves = get_n_of_moves_for_depth(moves_this_turn, depth + 1)
             if current_moves < max_moves:
                 depth += 1
@@ -495,7 +499,7 @@ class PlayerAI(Player):
         if depth == 0 or position.over:
             player_scores = {player.username : player.points for player in position.players}
 
-            self.calculations += 1
+            
             return {"scores" : player_scores, "moves" : [_first_play]}
 
         area = self.grid.height * self.grid.width
@@ -503,13 +507,42 @@ class PlayerAI(Player):
 
         username = player.username
         
+        # top depth is the surface or highest depth. Basically when it's the first time the function was called
+        top_depth = depth == self.depth
 
-        for tile in position.grid.tiles_left:
-            for direction in ["n", "e"]:
+
+        # If depth is not 1, then we only check each possible move at tiles where someone has already played, this saves huge amounts of calculations, since we don't check for every single possible move 
+        # If depth is 1 then we loop through each still available move, since we don't want to limit the AI to only play moves on tiles that have already been played
+
+        # Could still be heaviliy optimised -> currently each direction for a tile is tried, this means that some walls can and are calculated twice
+        # This method does lead to AI making mistakes sometimes (when the move that would capture the group is on the edge, see ipad)
+        # solution -> add direct neighbours to tiles list as well
+        tiles = []
+        if not top_depth:
+            directions = ["n", "e", "s", "w"]
+            # get tiles surrounding moves
+            for coord, direction in position.moves:
+                tile1 = self.grid.get_tile(coord)
+                tile2 = self.grid.get_tile(get_coord_using_direction(coord, direction))
+
+                for tile in (tile1, tile2):
+                    if not tile.visited_AI and not tile.captured:
+                        tiles.append(tile)
+                        tile.visited_AI = True
+        else:
+            tiles = self.grid.tiles_left
+            directions = ["n", "e"]
+
+
+
+        for tile in tiles:
+            tile.visited_AI = False
+            for direction in directions:
                 if tile.walls[direction] == None:
+                    self.calculations += 1
                     new_position = deepcopy(position)
 
-                    if depth == self.depth:
+                    if top_depth:
                         _first_play = ((tile.x, tile.y), direction)
 
 
@@ -527,7 +560,6 @@ class PlayerAI(Player):
                     current_difference = self.get_difference(current["scores"], player)
                     best_difference = self.get_difference(current_best["scores"], player)
 
-                    # check Ipad for improvement ideas
                     if current_difference > best_difference or (current_difference == best_difference and current_player_score > current_best_player_score):
                         current_best = current
                     elif current_difference == best_difference:
@@ -537,7 +569,7 @@ class PlayerAI(Player):
             
 if __name__ == "__main__":
     def local_game():
-        n = 4
+        n = 3
         game = Game((n, n))
 
         player_1 = LocalPlayer(game, "Nathan", "red")
@@ -545,7 +577,7 @@ if __name__ == "__main__":
         player_3 = PlayerAI(game, "MaximilianMus", "black")
 
         game.add_player(player_2)
-        game.add_player(player_1)
+        game.add_player(player_3)
         # game.add_player(player_3)
 
         player_id = len(game.players)
@@ -567,7 +599,7 @@ if __name__ == "__main__":
 
                 print("Here are the final results:")
                 for player in game.players:
-                    print(f"{player.username}: {player.points}")
+                    print(f"{player.username} ({player.number}): {player.points}")
                 break
 
 

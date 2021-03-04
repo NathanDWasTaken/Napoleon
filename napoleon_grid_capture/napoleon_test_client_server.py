@@ -68,7 +68,6 @@ class Border:
 class Wall(Border):
     def __init__(self, coord1, coord2):
         self.coords = (coord1, coord2)
-        self.tiles = frozenset({coord1, coord2})
         self.placed = False
 
     def __deepcopy__(self, memodict={}):
@@ -434,12 +433,12 @@ class PlayerAI(Player):
 
         wall = result["moves"][0]
 
-        tile1 = list(wall.tiles)[0]
-        tile2 = list(wall.tiles)[1]
+        coord1 = wall.coords[0]
+        coord2 = wall.coords[1]
 
-        difference = numpy.array(tile2) - numpy.array(tile1)
-        x = tile1[0]
-        y = tile1[1]
+        difference = numpy.array(coord2) - numpy.array(coord1)
+        x = coord1[0]
+        y = coord1[1]
         d = variation_direction[tuple(difference)]
 
         data = {
@@ -487,10 +486,8 @@ class PlayerAI(Player):
             if depth == self.depth:
                 _first_play = wall
 
-            tiles = list(wall.tiles)
-
             try:
-                new_position.play(player.username, tiles[0], tiles[1])
+                new_position.play(player.username, wall.coords[0], wall.coords[1])
 
                 if current_best["scores"][username] >= upper_bound:
                     return current_best
