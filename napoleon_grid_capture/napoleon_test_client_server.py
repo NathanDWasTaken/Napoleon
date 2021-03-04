@@ -1,9 +1,11 @@
 # pos is a coordinate in the form (x, y)
-from copy import deepcopy
+from copy import deepcopy, copy
 from random import choice
 from time import time
 from math import floor
-import numpy
+import numpy, ujson
+
+import cProfile
 
 
 # returns the variation of coordinate when going a certain direction
@@ -44,14 +46,18 @@ class InvalidTurn(Exception):
 
 class Tile:
     def __init__(self, x, y):
-        self.value = 0
-        self.x = x
-        self.y = y
         self.coords = (x, y)
         self.captured = False
         self.visited = False
         
         self.walls = {"n" : None, "e" : None, "s" : None, "w" : None}
+
+    def __deepcopy__(self, memodict={}):
+        tile = Tile(self.coords[0], self.coords[1])
+        tile.captured = self.captured
+        tile.walls = copy(self.walls)
+
+        return tile
 
 
 class Border:
@@ -60,10 +66,15 @@ class Border:
 
 
 class Wall(Border):
-    def __init__(self, coords1, coords2):
-        self.tiles = frozenset({coords1, coords2})
+    def __init__(self, coord1, coord2):
+        self.coords = (coord1, coord2)
+        self.tiles = frozenset({coord1, coord2})
         self.placed = False
 
+    def __deepcopy__(self, memodict={}):
+        wall = Wall(self.coords[0], self.coords[1])
+        wall.placed = self.placed
+        return wall
 
 class Grid:
     def __init__(self, width=8, height=8):
@@ -73,36 +84,36 @@ class Grid:
             self.tiles_left = []
 
             self.walls_left = {}
-
-            for y in range(height):
-                row = []
-                for x in range(width):
-                    tile = Tile(x, y)
-                    row.append(tile)
-                    self.tiles_left.append(tile)
-                self.grid.append(row)
             
-            for tile in self.get_all_tiles():
-                for direction, check in {"n" : tile.y == 0, "e" : tile.x == width - 1, "s" : tile.y == height - 1, "w" : tile.x == 0}.items():
-                    if check:
-                        tile.walls[direction] = Border()
-                    elif tile.walls[direction] == None:
-                        coord1 = (tile.x, tile.y)
-                        coord2 = get_coord_of_2nd_tile((tile.x, tile.y), direction)
-
-                        wall = Wall(coord1, coord2)
-
-                        tile.walls[direction] = wall
-                        tile2 = self.get_tile(coord2)
-                        tile2.walls[opposite_direction[direction]] = wall
-                        self.walls_left[frozenset({coord1, coord2})] = wall
-
-            self.total_n_of_moves = height * (width - 1) + width * (height - 1)
-            print(f"All possible first moves:", self.total_n_of_moves)
-
-
         else:
             print("Both grid dimensions have to be bigger than 1")
+
+    def create_grid(self):
+        for y in range(self.height):
+            row = []
+            for x in range(self.width):
+                tile = Tile(x, y)
+                row.append(tile)
+                self.tiles_left.append(tile)
+            self.grid.append(row)
+        
+        for tile in self.get_all_tiles():
+            for direction, check in {"n" : tile.coords[1] == 0, "e" : tile.coords[0] == self.width - 1, "s" : tile.coords[1] == self.height - 1, "w" : tile.coords[0] == 0}.items():
+                if check:
+                    tile.walls[direction] = Border()
+                elif tile.walls[direction] == None:
+                    coord1 = (tile.coords[0], tile.coords[1])
+                    coord2 = get_coord_of_2nd_tile((tile.coords[0], tile.coords[1]), direction)
+
+                    wall = Wall(coord1, coord2)
+
+                    tile.walls[direction] = wall
+                    tile2 = self.get_tile(coord2)
+                    tile2.walls[opposite_direction[direction]] = wall
+                    self.walls_left[frozenset({coord1, coord2})] = wall
+
+        self.total_n_of_moves = self.height * (self.width - 1) + self.width * (self.height - 1)
+        print(f"All possible first moves:", self.total_n_of_moves)
 
     def add_wall_using_direction(self, coord1, direction):
         """gets coords of tile 2 using coord1 and direction and calls add_wall"""
@@ -253,7 +264,12 @@ class Grid:
             print_vertical(row)
         print_horizontal(self.grid[-1], bottom=True)
         
-
+    def __deepcopy__(self, memodict={}):
+        grid = Grid(self.width, self.height)
+        grid.grid = deepcopy(self.grid)
+        grid.tiles_left = deepcopy(self.tiles_left)
+        grid.walls_left = deepcopy(self.walls_left)
+        return grid
 
 class Game:
     def __init__(self, grid=(8, 8)):
@@ -263,6 +279,7 @@ class Game:
         
         x, y = grid
         self.grid = Grid(x, y)
+        self.grid.create_grid()
 
         self.player_turn_counter = 0
         self.numberOfPlayers = 0
@@ -383,7 +400,10 @@ class LocalPlayer(Player):
         }
 
         try:
-            return self.game.play_data(data)
+            start_time = time()
+            result = self.game.play_data(data)
+            print(f"Flood fill took {time() - start_time}s")
+            return result
         except CouldNotAddWall:
             print("Invalid Coords, couldn't add wall!")
             self.grid.print_board()
@@ -532,4 +552,5 @@ if __name__ == "__main__":
 
 
 
+    #cProfile.run("local_game()")
     local_game()
