@@ -52,11 +52,10 @@ class Tile:
 
         return tile
 
-class Border:
+class Wall:
     pass
 
-
-class Wall(Border):
+class Border(Wall):
     pass
 
 
@@ -207,7 +206,7 @@ class Grid:
                 yield tile
 
     def direction_has_wall(self, tile, direction):
-        return isinstance(tile.walls[direction], Border)
+        return isinstance(tile.walls[direction], Wall)
         
 
     def getSurroundingCoords(self, x, y):
@@ -528,8 +527,6 @@ if __name__ == "__main__":
             current_player = game.players[player_rotation]
 
             result = current_player.play()
-
-            break
             
             if result["outcome"] == "end":
                 game.grid.print_board()
