@@ -6,8 +6,18 @@ from math import floor
 
 import cProfile, ujson
 
-def subtract_2_addresses(coord1, coord2, operation="-"):
-    """do operation element wise between coord1 and coord2"""
+
+
+class InvalidTurn(Exception):
+    pass
+
+
+
+
+# Inaccurate name, I know.
+def get_coord_using_difference(coord1, coord2, operation="-"):
+    """comparable to applying a vector to a point in geometry. 
+    We use the starting point and the displacement (found in variation_direction) to get the second point (coord)"""
     difference = []
 
     for element2, element1 in zip(coord2, coord1):
@@ -99,11 +109,10 @@ class Grid:
             return False
 
         variation = variation_direction[direction]
+        coord2 = get_coord_using_difference(coord1, variation, operation="+")
 
-        # we can figure out coords of addr2 if we know addr1 and the direction it wants to go
-        coord2 = subtract_2_addresses(coord1, variation, operation="+")
         if not self.is_valid_position(coord2):
-            print("Address 2 is not Valid")
+            print("Address 2 is invalid:", coord2)
             return False
 
         tile1 = self.get_tile(coord1)
@@ -179,15 +188,6 @@ class Grid:
         else:
             return {"outcome" : "nothing captured"}
 
-
-    def make_move(self, coord, direction):
-        """takes in address/coordinates and direction, adds a wall there and checks whether that wall cut off any square"""
-        wall_placed_successfully = self.add_wall(coord, direction)
-
-        if wall_placed_successfully:
-            return self.apply_flood_fill(coord)
-        else:
-            return {"outcome" : "CouldNotAddWall"}
 
     def is_valid_position(self, addr):
         """returns whether the given address is in the grid bounds"""
@@ -278,15 +278,13 @@ class Game:
         self.grid.create_grid()
 
         self.player_turn_counter = 0
-        self.numberOfPlayers = 0
         self.moves = []
         self.over = False
 
     def add_player(self, player):
-        self.players.append(player)
-        if self.numberOfPlayers == 0:
+        if len(self.players) == 0:
             self.current_player = player
-        self.numberOfPlayers += 1
+        self.players.append(player)
 
         self.players_dict[player.username] = player
         return player
@@ -302,7 +300,8 @@ class Game:
     def next_player(self):
         return self.players[(self.player_turn_counter + 1) % len(self.players)]
         
-    def play(self, data):
+
+    def play_data(self, data):
         """data: {
             player: username,
             wall: x-y-d
@@ -310,16 +309,26 @@ class Game:
         """
 
 
-        self.moves.append(data)
-
         player = data["player"]
         wall_list = data['wall'].split("-")
         coord, direction = (int(wall_list[0]), int(wall_list[1])), wall_list[2]
-
-        self.numberOfPlayers = len(self.players)
+        coord2 = get_coord_using_difference(coord, direction)
 
         if self.current_player.username == player:
-            result = self.grid.make_move(coord, direction)
+            result = self.make_move(player, coord, coord2)
+            return result
+        else:
+            raise InvalidTurn
+
+
+    def make_move(self, username, coord, direction):
+        if self.current_player.username == username:
+            self.moves.append([coord, direction])
+
+            if not self.grid.add_wall(coord, direction):
+                return {"outcome" : "CouldNotAddWall"}
+
+            result = self.grid.apply_flood_fill(coord)
 
             if result["outcome"] == "CouldNotAddWall":
                 # {"outcome" : "CouldNotAddWall"}
@@ -344,7 +353,7 @@ class Game:
             return result
         else:
             print("It's not this player's turn:")
-            print("    User that sent the message:", player)
+            print("    User that sent the message:", username)
             print("    User who's turn it is:", self.current_player.username)
             print("    List of players:", [player.username for player in self.players])
             return "InvalidTurn"
@@ -359,7 +368,7 @@ class Game:
             x, y = int(x) - 1, self.grid.height - int(y)
             if d not in ["n", "e", "s", "w"]:
                 raise Exception
-            return f"{x}-{y}-{d}"
+            return (x, y), d
 
         except Exception:
             print(f"The input is invalid: {entry}")
@@ -387,14 +396,11 @@ class Player:
 
 class LocalPlayer(Player):
     def play(self):
-        wall = self.game.input_to_coords(self.username, self.number)
+        coords, direction = self.game.input_to_coords(self.username, self.number)
 
-        data = {
-            "player" : self.username,
-            "wall" : wall
-        }
         start_time = time()
-        result = self.game.play(data)
+        result = self.game.make_move(self.username, coords, direction)
+
         print(f"Flood fill took {time() - start_time}s")
         if result["outcome"] == "CouldNotAddWall":
             print("Invalid Coords, couldn't add wall!")
@@ -411,12 +417,50 @@ class PlayerAI(Player):
 
     def play(self):
         start_time = time()
-        print(f"{self.username} ({self.number}): ", end="")
         game_copy = deepcopy(self.game)
 
-        # odd number of depth is counter productive, since the AI will try to maximize it's gains, no matter what the opponent gets.
-        # If the only way to get 1 tile is by giving the opponent half the board, the AI will do so.
-        self.depth = round(  (   (len(self.game.moves) * 1.5) / self.grid.total_n_of_moves)) * 2 + 2
+        # ------ calculate the amount of moves left ------
+
+        # iterate through each uncaptured tile in the game and check how many lack walls
+        moves_this_turn = 0
+        for tile in self.grid.tiles_left:
+            for direction in ["n", "e"]:
+                if tile.walls[direction] == None:
+                    moves_this_turn += 1
+
+        print("Max amount of moves left:", moves_this_turn)
+
+        def get_n_of_moves_for_depth(n_of_initial_moves, depth_used):
+            """returns the amount of moves that will have to be checked for a depth.
+            For example if the bot can do 112 moves in one turn, then he will have to check 12432 moves for depth 2 (112 * 111)
+            n_of_initial_moves is the amount of moves the bot can do the current move"""
+            total_moves = n_of_initial_moves
+
+            while depth_used > 1:
+                n_of_initial_moves -= 1
+                depth_used -= 1
+                if n_of_initial_moves < 1:
+                    break
+                total_moves *= n_of_initial_moves
+
+
+            return total_moves
+
+        # Calculate the depth we can go while staying under the max_moves limit, the more moves to calculate the longer it takes
+        depth = 2
+        max_moves = 250000
+        current_moves = 0
+        while depth < 30:
+            current_moves = get_n_of_moves_for_depth(moves_this_turn, depth + 1)
+            if current_moves < max_moves:
+                depth += 1
+            else:
+                break
+        
+        print("Current depth being used:", depth, f"(estimated moves to calculate: {get_n_of_moves_for_depth(moves_this_turn, depth)})")
+        print(f"{self.username} ({self.number}): ", end="")
+
+        self.depth = depth
 
         result = self.Max_n_shallow(game_copy, self, floor(self.grid.width * self.grid.height / 2) + 1)
 
@@ -426,12 +470,6 @@ class PlayerAI(Player):
         y = wall[0][1]
         d = wall[1]
 
-        wall = f"{x}-{y}-{d}"
-
-        data = {
-            "player" : self.username,
-            "wall" : wall
-        }
 
         print(self.game.coords_to_input(x, y, d))
         time_it_took = time() - start_time
@@ -440,7 +478,7 @@ class PlayerAI(Player):
         print(self.calculations, "calculations")
         self.calculations = 0
 
-        return self.game.play(data)
+        return self.game.make_move(self.username, (x, y), d)
 
     def get_difference(self, scores, player):
         temp_dict = {k: scores[k] for k in scores.keys() - {player.username}}
@@ -474,12 +512,8 @@ class PlayerAI(Player):
                     if depth == self.depth:
                         _first_play = ((tile.x, tile.y), direction)
 
-                    data = {
-                    "player" : username,
-                    "wall" : f"{tile.x}-{tile.y}-{direction}"
-                    }
 
-                    new_position.play(data)
+                    new_position.make_move(username, (tile.x, tile.y), direction)
                     # new_position.grid.print_board()
 
                     if current_best["scores"][username] >= upper_bound:
@@ -503,7 +537,7 @@ class PlayerAI(Player):
             
 if __name__ == "__main__":
     def local_game():
-        n = 8
+        n = 4
         game = Game((n, n))
 
         player_1 = LocalPlayer(game, "Nathan", "red")
