@@ -4,6 +4,7 @@
 {{ game_id|json_script:"game-id" }}
 <div class="container">
     <a href="{% url 'napoleon-local' %}" class="btn btn-primary">Local Game</a>
+    <a href="{% url 'game-selection' %}" class="btn btn-primary">Online Game</a>
 </div>
 
 {% endblock content %}

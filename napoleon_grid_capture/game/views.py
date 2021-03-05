@@ -4,6 +4,7 @@ from uuid import uuid4
 
 def create_uuid():
     uuid = str(uuid4())
+    print("UUID:", uuid)
     return uuid.replace("-", "_")
 
 def multiplayer(request, game_id):
@@ -16,5 +17,5 @@ def local_redirect(request):
     return redirect(f"/game/local/{create_uuid()}/")
 
 def game_selection(request):
-    return redirect(f"{create_uuid()}/")
-    # return render(request, "game/index.html")
+    return render(request, "game/game_creation.html")
+    # return redirect(f"online/{create_uuid()}/")

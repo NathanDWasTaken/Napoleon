@@ -23,7 +23,8 @@ variation_direction = {
     "n": (0, -1), (0, -1): "n", 
     "e": (1, 0), (1, 0): "e", 
     "s": (0, 1), (0, 1): "s", 
-    "w": (-1, 0), (-1, 0): "w"}
+    "w": (-1, 0), (-1, 0): "w"
+}
     
 opposite_direction = {"n" : "s", "e" : "w", "s" : "n", "w" : "e"}
 
@@ -45,7 +46,7 @@ class Border:
 
 class Wall(Border):
     def __init__(self, tile1, tile2):
-        tiles = [tile1, tile2]
+        self.tiles = [tile1, tile2]
 
 
 class Grid:
@@ -103,7 +104,7 @@ class Grid:
         return True
 
     def make_move(self, coord, direction):
-        """takes in address and direction, adds a wall there and checks whether that wall cut off any square"""
+        """takes in address/coordinates and direction, adds a wall there and checks whether that wall cut off any square"""
         wall_placed_successfully = self.add_wall(coord, direction)
 
         if wall_placed_successfully:
@@ -253,31 +254,34 @@ class Grid:
 
 
 class Game:
-    def __init__(self, grid=None):
+    def __init__(self, grid=(8, 8)):
         """takes an optional grid instance (in case one doesn't want 8x8)"""
         self.players = []
         self.players_dict = {}
-        if grid == None:
-            grid = Grid()
-        self.grid = grid
+
+        x, y = grid
+        self.grid = Grid(x, y)
+        
         self.counter = 0
         self.numberOfPlayers = 0
         self.moves = []
 
 
-    def add_player(self, username):
-        player = Player(username, self.grid, self.numberOfPlayers)
+    def add_player(self, username, colour):
+        player = Player(username, self.grid, colour)
         self.players.append(player)
         if self.numberOfPlayers == 0:
             self.current_player = player
         self.numberOfPlayers += 1
 
         self.players_dict[username] = player
+        return player
 
     def remove_player(self, username):
         player = self.players_dict[username]
 
         self.players.remove(player)
+        del self.players_dict[username]
 
         self.current_player = self.next_player()
 
@@ -329,8 +333,8 @@ class Game:
 
 
 class Player:
-    def __init__(self, username, grid, number):
+    def __init__(self, username, grid, colour):
         self.username = username
         self.grid = grid
         self.points = 0
-        self.number = number
+        self.colour = colour

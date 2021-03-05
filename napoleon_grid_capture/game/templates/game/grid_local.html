@@ -17,52 +17,59 @@
         
         gameSocket.onmessage = function(e) {
             const data = JSON.parse(e.data)
-            let tile_colour = rgb_to_rgba(data["colour"], "0,5")
+            let command = data["command"]
 
-            for (const tile in data["tiles"]) {
-                const tile_id = data["tiles"][tile]
+            if (command == "add move") {
+                let tile_colour = rgb_to_rgba(data["colour"], "0.5")
 
-                const rect = document.getElementById(tile_id)
-                rect.setAttribute("fill", tile_colour)
-                rect.setAttribute("opacity", "0.5")
-            }
+                for (const tile in data["tiles"]) {
+                    const tile_id = data["tiles"][tile]
 
-            let player = players[player_turn_counter]
-
-            player.score = data["score"]
-
-            if (data["wall"] != null) {
-                const line = document.getElementById(data["wall"])
-
-                let x1 = parseInt(line.getAttribute("x1"))
-                let y1 = parseInt(line.getAttribute("y1"))
-                let x2 = parseInt(line.getAttribute("x2"))
-                let y2 = parseInt(line.getAttribute("y2"))
-
-
-                wall_colour = rgb_to_rgba(player.colour, "0,9")
-
-                const wall = add_line(x1, y1, x2, y2, id=`wall-${x1}-${y1}`, colour=wall_colour)
-                wall.setAttribute("marked", "true")
-                wall.setAttribute("stroke", wall_colour)
-                line.remove()
-                document.getElementById("grid").appendChild(wall)
-            }
-
-            try {
-                for (const wall in data["remove_walls"]) {
-                    document.getElementById(data["remove_walls"][wall]).remove()
+                    const rect = document.getElementById(tile_id)
+                    rect.setAttribute("fill", tile_colour)
                 }
-            } catch {}
 
-            // Update player score in table
-            document.getElementById(`score-${player.username}`).innerText = player.score
+                let player = players[player_turn_counter]
 
-            next_player()
+                player.score = data["score"]
 
-            try {document.getElementById("highlighted").remove()}
-            catch {}
-            my_turn = false
+                if (data["wall"] != null) {
+                    const line = document.getElementById(data["wall"])
+
+                    let x1 = parseInt(line.getAttribute("x1"))
+                    let y1 = parseInt(line.getAttribute("y1"))
+                    let x2 = parseInt(line.getAttribute("x2"))
+                    let y2 = parseInt(line.getAttribute("y2"))
+
+
+                    wall_colour = player.colour
+
+                    const wall = add_line(x1, y1, x2, y2, id=`wall-${x1}-${y1}`, colour=wall_colour)
+                    wall.setAttribute("marked", "true")
+                    wall.setAttribute("stroke", wall_colour)
+                    line.remove()
+                    document.getElementById("grid").appendChild(wall)
+                }
+
+                try {
+                    for (const wall in data["remove_walls"]) {
+                        document.getElementById(data["remove_walls"][wall]).remove()
+                    }
+                } catch {}
+
+                // Update player score in table
+                update_scoreboard(player.username, player.score)
+
+                next_player()
+
+                try {document.getElementById("highlighted").remove()}
+                catch {}
+                my_turn = false
+            }
+
+            else if (command == "end") {
+                victory(data["results"])
+            }
         };
         createGrid()
         }   
@@ -70,8 +77,8 @@
 
 
 <script type="text/javascript">
-    let me = add_player("Nathan", "red")
-    let sarah = add_player("Sarah", "blue")
+    let me = add_player("Nathan", "rgb(255, 0, 0)")
+    let player = add_player("Random", "rgb(0, 0, 255)")
 
     function next_player() {
         player_turn_counter = (player_turn_counter + 1) % players.length

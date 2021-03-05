@@ -25,7 +25,11 @@ SECRET_KEY = os.environ.get("NapoleonSecretKey")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+# use: python manage.py runserver 192.168.178.93:8000
+ALLOWED_HOSTS = [
+    "192.168.178.93",
+    "127.0.0.1"
+]
 
 
 # Application definition
@@ -34,6 +38,7 @@ INSTALLED_APPS = [
     'channels',
     'game.apps.GameConfig',
     'menu.apps.MenuConfig',
+
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -70,7 +75,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'napoleon_grid_capture.wsgi.application'
+ASGI_APPLICATION = 'napoleon_grid_capture.asgi.application'
 
 
 # Database
@@ -122,7 +127,11 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 
-ASGI_APPLICATION = 'napoleon_grid_capture.routing.application'
+STATICFILES_DIRS = (
+    os.path.join(BASE_DIR, "static"),
+)
+
+ASGI_APPLICATION = 'napoleon_grid_capture.asgi.application'
 
 CHANNEL_LAYERS = {
     "default": {
