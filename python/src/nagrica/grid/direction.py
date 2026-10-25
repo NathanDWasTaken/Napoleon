@@ -10,6 +10,10 @@ class Direction(Vector[int], Enum):
     SOUTH   = ( 0, -1 )
     WEST    = (-1,  0 )
 
+    @classmethod
+    def from_letter(cls, letter: str) -> Direction:
+        return next(d for d in cls if d.name[0] == letter.upper())
+
 
 
 N = Direction.NORTH
