@@ -1,7 +1,7 @@
-from abc    import ABC, abstractmethod
+from abc        import ABC, abstractmethod
 
-from .state        import GameState
-from .move         import Move
+from .state     import GameState
+from .move      import Move
 
 
 class Player(ABC):

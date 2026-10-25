@@ -1,10 +1,6 @@
 from .direction         import Direction
 from .coord             import Coord, CoordLike
-from nagrica.exceptions import NagricaError
-
-
-class UnreachableCell(NagricaError):
-    ...
+from .exceptions        import CellOutOfBounds
 
 
 
@@ -33,7 +29,7 @@ class Cell:
 
     def walk(self, direction: Direction) -> Cell:
         if not self.connects(direction):
-            raise UnreachableCell()
+            raise CellOutOfBounds()
 
         return self.connections[direction]
 

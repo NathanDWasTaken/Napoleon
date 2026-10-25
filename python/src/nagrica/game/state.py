@@ -2,19 +2,19 @@ from .move              import Move
 from .turn              import Turn
 from .exceptions        import IllegalMove
 
-from nagrica.grid       import Board, CoordLike
-from nagrica.capture    import CaptureEvaluation, GreedyDFS
+from nagrica.grid       import Board, CoordLike, Direction
+from nagrica.capture    import Capture, CaptureEvaluation
 
 
 class GameState:
     board:          Board
     num_players:    int
-    current_player: int
     scores:         list[int]
 
     # List of played moves. 
     history:        list[Turn]
 
+    _tick:          int     = 0
     _ce:            type[CaptureEvaluation]
     
 
@@ -24,31 +24,54 @@ class GameState:
         width:          int,
         num_players:    int,
         *,
-        capture_eval:   type[CaptureEvaluation] = GreedyDFS
+        capture_eval:   type[CaptureEvaluation],
+        board_class:    type[Board],
     ):
-        self.board          = Board(height, width)
+        self.board          = board_class(height, width)
         self.num_players    = num_players
-        self.current_player = 0
         self.scores         = [0] * num_players
+        self.history        = []
+
         self._ce            = capture_eval
+
+
+    @property
+    def finished(self):
+        return self.board.num_in_play == 0
+
+    @property
+    def current_seat(self):
+        return self._tick % self.num_players
 
     
     def is_legal(self, move: Move) -> bool:
-        coord1 = move.coord
-        coord2 = move.coord.to_neighbor(move.direction)
+        coord1  = move.coord
+        coord2  = move.coord.to_neighbor(move.direction)
+        b       = self.board
 
         # Check both cells still in play
-        if not (coord1 in self.board.in_play and coord2 in self.board.in_play):
+        if not (b.is_in_play(coord1) and b.is_in_play(coord2)):
             return False
 
-        return self.board.neighbor_is_reachable(coord1, move.direction)
+        return self.board.connects(coord1, move.direction)
 
 
-    def legal_moves(self):
+    def legal_moves(self) -> list[Move]:
         """
         Generate all legal moves for the board
         """
-        # TODO
+        all_moves: list[Move] = []
+
+        for coord in self.board.in_play:
+            for direction in (Direction.NORTH, Direction.EAST):
+                if not self.board.connects(coord, direction):
+                    continue
+
+                all_moves.append(Move(
+                    coord, direction
+                ))
+
+        return all_moves
 
 
     def copy(self) -> GameState:
@@ -60,11 +83,11 @@ class GameState:
 
     def apply(
         self,
-        move:           Move,
-        player_seat:    int,
+        move:           Move
     ):
+
         if not self.is_legal(move):
-            raise IllegalMove(move, player_seat)
+            raise IllegalMove(move, self.current_seat)
 
         coord       = move.coord
         direction   = move.direction
@@ -74,19 +97,29 @@ class GameState:
 
         capture     = self.eval_capture(coord, coord.to_neighbor(direction))
 
+
+        if capture.coords:
+            if self.board.num_in_play == 2:
+                capture = Capture(frozenset(self.board.in_play))
+
+            self._register_capture(self.current_seat, capture)
+
+        self._register_move(move, capture)
+
+
+    def _register_move(self, move: Move, capture: Capture):
         self.history.append(Turn(
-            player_seat,
+            self.current_seat,
             move,
             capture
         ))
+        self._tick += 1
 
-        # Skip if nothing was captured
-        if not capture.coords:
-            return
 
+    def _register_capture(self, player_seat: int, capture: Capture):
         self.scores[player_seat]    += capture.points
-        self.board.register_capture(player_seat, capture.coords)
-        self.board.in_play          -= capture.coords
+        self.board.capture(player_seat, capture.coords)
+
     
 
     def undo(self):

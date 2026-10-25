@@ -1,4 +1,4 @@
-from .board     import Board
+from .boards    import Board
 from .cell      import Cell
 from .coord     import Coord, CoordLike
 from .direction import Direction
