@@ -1,6 +1,7 @@
 import pytest
 
-from nagrica.grid.cell           import Cell, UnreachableCell
+from nagrica.grid.cell           import Cell
+from nagrica.grid.exceptions     import CellOutOfBounds
 from nagrica.grid.coord          import Coord
 from nagrica.grid.direction      import Direction
 
@@ -52,5 +53,5 @@ def test_walk_follows_connection():
 
 
 def test_walk_without_connection_raises():
-    with pytest.raises(UnreachableCell):
+    with pytest.raises(CellOutOfBounds):
         Cell(Coord(0, 0)).walk(Direction.NORTH)

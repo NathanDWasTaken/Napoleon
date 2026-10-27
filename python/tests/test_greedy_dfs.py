@@ -2,15 +2,15 @@ import pytest
 
 from nagrica.capture.capture         import Capture
 from nagrica.capture.greedy_dfs      import GreedyDFS
-from nagrica.grid.board              import Board
+from nagrica.grid.boards             import Board
 from nagrica.grid.coord              import Coord
 from nagrica.grid.direction          import Direction
 from nagrica.grid.vector             import Vector
 
 
 @pytest.fixture
-def board() -> Board:
-    return Board(3, 3)
+def board(board_class: type[Board]) -> Board:
+    return board_class(3, 3)
 
 
 def wall_off_corner(board: Board):
