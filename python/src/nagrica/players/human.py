@@ -26,26 +26,42 @@ class HumanPlayer(Player):
     This means that we place the wall between the tiles at position X=0, Y=1 and X=0, Y=2 
     """
 
-    COORD_PATTERN       = r"[\(]?(\d+)[\s,-]+(\d+)[\)]?"
+    COORD_PATTERN       = r"[\(]?([-]?\d+)[\s,]+([-]?\d+)[\)]?"
     DIRECTION_PATTERN   = r"([NESW])"
-    INPUT_PATTERN_1     = COORD_PATTERN + r"\s+" + DIRECTION_PATTERN
-    INPUT_PATTERN_2     = COORD_PATTERN + r"\s+" + COORD_PATTERN
+    INPUT_PATTERN_1     = r"\s*" + COORD_PATTERN + r"\s+" + DIRECTION_PATTERN   + r"\s*"
+    INPUT_PATTERN_2     = r"\s*" + COORD_PATTERN + r"\s+" + COORD_PATTERN       + r"\s*"
+            
 
 
-    def _parse_input(self, user_input: str) -> Move:
+    def _parse_input(self, user_input: str, height: int, width: int) -> Move:
+        def convert_negative(value: int, max_value: int) ->  int:
+            if value >= 0:
+                return value
+            return max_value + value
+        
+
         if   match := re.match(self.INPUT_PATTERN_1, user_input.upper()):
             x, y, d = match.groups()
 
             return Move(
-                Coord(int(x), int(y)),
+                Coord(
+                    convert_negative(int(x), width),
+                    convert_negative(int(y), height)
+                ),
                 Direction.from_letter(d)
             )
 
         elif match := re.match(self.INPUT_PATTERN_2, user_input.upper()):
             x1, y1, x2, y2 = match.groups()
-
-            coord1      = Coord(int(x1), int(y1))
-            coord2      = Coord(int(x2), int(y2))
+            
+            coord1 = Coord(
+                convert_negative(int(x1), width),
+                convert_negative(int(y1), height)
+            )
+            coord2 = Coord(
+                convert_negative(int(x2), width),
+                convert_negative(int(y2), height)
+            )
 
             try:
                 direction   = coord1.direction_to(coord2)
@@ -63,7 +79,7 @@ class HumanPlayer(Player):
 
     def make_move(self, gameState: GameState) -> Move:
         while True:
-            print(render_board(gameState.board))
+            print(render_board(gameState.board, axes=True))
             print()
             print(f"{self.name} - Place a wall:")
 
@@ -81,7 +97,7 @@ class HumanPlayer(Player):
                 return choice(all_moves)
 
             try:
-                move = self._parse_input(user_input)
+                move = self._parse_input(user_input, gameState.board.height, gameState.board.width)
             except InvalidInputPattern:
                 print(f"Could not parse input: {user_input} - Format needs to be (X Y D) or (X1 Y1 X2 Y2). Type help for more info")
                 continue

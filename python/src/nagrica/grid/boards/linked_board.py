@@ -5,7 +5,7 @@ from .board     import Board
 from nagrica.grid.direction     import Direction
 from nagrica.grid.cell          import Cell
 from nagrica.grid.coord         import Coord, CoordLike
-
+from nagrica.grid.exceptions    import CellOutOfBounds
 
 
 class LinkedBoard(Board):
@@ -39,6 +39,9 @@ class LinkedBoard(Board):
 
 
     def remove_wall(self, coord: CoordLike, direction: Direction):
+        if not self.coord_is_valid(Coord(*coord).to_neighbor(direction)):
+            raise CellOutOfBounds()
+
         self._link_cell(coord, direction)
 
 

@@ -91,7 +91,7 @@ def print_results(match: Match) -> None:
     best    = max(scores)
     winners = [player.name for player in match.players if scores[player.seat] == best]
 
-    print(render_board(match.state.board))
+    print(render_board(match.state.board, axes=True))
     print()
 
     for player in match.players:
