@@ -7,7 +7,8 @@ from nagrica.game                import GameState, Move
 from nagrica.grid.boards         import LinkedBoard
 from nagrica.grid.coord          import Coord
 from nagrica.grid.direction      import Direction
-from nagrica.players             import HumanPlayer, RandomPlayer
+from nagrica.ai                  import SearchAlgorithm
+from nagrica.players             import ComputerPlayer, HumanPlayer
 from nagrica.players.exceptions  import InvalidInputPattern
 
 
@@ -99,29 +100,34 @@ def test_make_move_exit_aborts(human: HumanPlayer, monkeypatch: pytest.MonkeyPat
         human.make_move(new_state())
 
 
-# ---------------------------------------------------------------- RandomPlayer
+# ---------------------------------------------------------------- ComputerPlayer
 
 
-def test_random_player_returns_legal_moves():
-    state   = new_state(4, 4)
-    player  = RandomPlayer("Bot", 0, seed=1)
+class StubSearch(SearchAlgorithm):
+    """Returns a fixed move and records what it was asked."""
 
-    while not state.finished:
-        move = player.make_move(state)
+    def __init__(self, move: Move) -> None:
+        self.move   = move
+        self.calls: list[GameState] = []
 
-        assert state.is_legal(move)
-        state.apply(move)
+    def select_move(self, gameState: GameState) -> Move:
+        self.calls.append(gameState)
 
-
-def test_random_player_is_reproducible_with_seed():
-    state   = new_state(5, 5)
-    first   = RandomPlayer("A", 0, seed=42)
-    second  = RandomPlayer("B", 0, seed=42)
-
-    assert [first.make_move(state) for _ in range(10)] == [second.make_move(state) for _ in range(10)]
+        return self.move
 
 
-def test_random_player_without_seed():
-    state = new_state()
+def test_computer_player_returns_the_search_move():
+    move    = Move(Coord(0, 0), N)
+    player  = ComputerPlayer("Bot", 0, search_algo=StubSearch(move))
 
-    assert state.is_legal(RandomPlayer("Bot", 0).make_move(state))
+    assert player.make_move(new_state()) == move
+
+
+def test_computer_player_passes_the_state():
+    search  = StubSearch(Move(Coord(0, 0), N))
+    player  = ComputerPlayer("Bot", 1, search_algo=search)
+    state   = new_state()
+
+    player.make_move(state)
+
+    assert search.calls == [state]

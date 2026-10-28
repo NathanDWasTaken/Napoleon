@@ -1,6 +1,6 @@
 import pytest
 
-from nagrica.grid.cell           import Cell
+from nagrica.grid.boards.linked_board import Cell
 from nagrica.grid.exceptions     import CellOutOfBounds
 from nagrica.grid.coord          import Coord
 from nagrica.grid.direction      import Direction

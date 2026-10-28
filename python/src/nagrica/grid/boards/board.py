@@ -59,6 +59,9 @@ class Board(ABC):
     def in_play(self) -> Iterable[Coord]: ...
 
 
+    @abstractmethod
+    def copy(self) -> Board: ...
+
 
     # Concrete
 

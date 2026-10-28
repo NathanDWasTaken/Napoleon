@@ -3,9 +3,47 @@ from typing     import Iterable
 from .board     import Board
 
 from nagrica.grid.direction     import Direction
-from nagrica.grid.cell          import Cell
 from nagrica.grid.coord         import Coord, CoordLike
 from nagrica.grid.exceptions    import CellOutOfBounds
+
+
+
+class Cell:
+    coord:          Coord
+    owned:          int = -1
+
+    connections:    dict[Direction, Cell]
+
+    def __init__(self, coord: CoordLike) -> None:
+        self.coord          = Coord(*coord)
+        self.connections    = {}
+    
+    
+    @property
+    def x(self) -> int:
+        return self.coord.x
+
+    @property
+    def y(self) -> int:
+        return self.coord.y
+
+
+    def connects(self, direction: Direction) -> bool:
+        return direction in self.connections
+
+    def walk(self, direction: Direction) -> Cell:
+        if not self.connects(direction):
+            raise CellOutOfBounds()
+
+        return self.connections[direction]
+
+
+    def __repr__(self) -> str:
+        connections_str = ", ".join(f"{d.name[0]}=({c.coord.x},{c.coord.y})" for d, c in self.connections.items())
+
+        return f"Cell(coord={self.coord}, owned={self.owned}, connections=({connections_str}))"
+        
+
 
 
 class LinkedBoard(Board):
@@ -71,6 +109,34 @@ class LinkedBoard(Board):
     @property
     def in_play(self) -> Iterable[Coord]:
         return self._in_play
+
+
+    def copy(self):
+        new             = LinkedBoard.__new__(LinkedBoard)
+        
+        new.height      = self.height
+        new.width       = self.width
+
+        new._in_play    = self._in_play.copy()
+
+        new._cells      = {}
+
+
+        for y in range(self.height):
+            for x in range(self.width):
+                coord   = Coord(x, y)
+                new._create_cell(coord)
+
+                old_cell    = self[coord]
+                new_cell    = new[coord]
+
+                new_cell.owned = old_cell.owned
+
+                for dir in [Direction.SOUTH, Direction.WEST]:
+                    if old_cell.connects(dir):
+                        new._link_cell(coord, dir)
+
+        return new
 
 
 

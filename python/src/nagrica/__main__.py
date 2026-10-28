@@ -1,15 +1,30 @@
 from argparse           import ArgumentParser, ArgumentTypeError, Namespace
+from collections.abc    import Callable
 
+from nagrica.ai         import CurrentScore, Max_N, RandomMove, SearchAlgorithm
 from nagrica.game       import Player
 from nagrica.game.match import Match
-from nagrica.players    import HumanPlayer, RandomPlayer
+from nagrica.players    import ComputerPlayer, HumanPlayer
 from nagrica.ui         import render_board
 
 
+# Builds a player from its name and seat
+PlayerFactory = Callable[[str, int], Player]
+
+
+def _computer(search: Callable[[], SearchAlgorithm]) -> PlayerFactory:
+    """
+    Factory for a computer player. Each player gets its own search instance,
+    so two computers never share state (e.g. a random number generator).
+    """
+    return lambda name, seat: ComputerPlayer(name, seat, search_algo=search())
+
+
 # Player types selectable from the CLI. Register new (AI) players here
-PLAYER_TYPES: dict[str, type[Player]] = {
+PLAYER_TYPES: dict[str, PlayerFactory] = {
     "human":    HumanPlayer,
-    "random":   RandomPlayer
+    "random":   _computer(RandomMove),
+    "maxn":     _computer(lambda: Max_N(CurrentScore())),
 }
 
 DEFAULT_PLAYERS = [("human", None), ("human", None)]

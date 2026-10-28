@@ -1,8 +1,8 @@
 from .human     import HumanPlayer
-from .computer  import RandomPlayer
+from .computer  import ComputerPlayer
 
 
 __all__ = [
     "HumanPlayer",
-    "RandomPlayer"
+    "ComputerPlayer"
 ]

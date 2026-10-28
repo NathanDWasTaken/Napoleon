@@ -56,3 +56,13 @@ A bridge in Graph theory is an edge that connects 2 sets of nodes together. If a
 ## Computer Adversary
 
 TODO
+
+
+
+## Game Names
+- Partition
+- Fault Lines
+- Walled off
+- Bonaparte
+- Divide X Conquer
+- Annex

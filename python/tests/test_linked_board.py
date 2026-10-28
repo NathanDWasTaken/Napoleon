@@ -67,3 +67,27 @@ def test_capture_sets_cell_owned(board: LinkedBoard):
     board.capture(2, {Coord(1, 1)})
 
     assert board[(1, 1)].owned == 2
+
+
+# ---------------------------------------------------------------- copy
+
+
+def test_copy_shares_no_cells(board: LinkedBoard):
+    clone = board.copy()
+
+    for coord in ALL_COORDS:
+        assert clone[coord] is not board[coord]
+
+
+def test_copy_links_its_own_cells(board: LinkedBoard):
+    clone = board.copy()
+
+    for coord in ALL_COORDS:
+        for direction, neighbour in clone[coord].connections.items():
+            assert neighbour is clone[coord.to_neighbor(direction)]
+
+
+def test_copy_does_not_share_in_play_set(board: LinkedBoard):
+    clone = board.copy()
+
+    assert clone._in_play is not board._in_play

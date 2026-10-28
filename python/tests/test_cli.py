@@ -1,7 +1,8 @@
 import pytest
 
 from nagrica.__main__            import build_players, main, parse_args
-from nagrica.players             import HumanPlayer, RandomPlayer
+from nagrica.ai                  import RandomMove
+from nagrica.players             import ComputerPlayer, HumanPlayer
 
 
 # ---------------------------------------------------------------- arguments
@@ -42,9 +43,16 @@ def test_build_players():
     players = build_players([("human", "Alice"), ("random", None)])
 
     assert type(players[0]) is HumanPlayer
-    assert type(players[1]) is RandomPlayer
+    assert type(players[1]) is ComputerPlayer
+    assert type(players[1].search_algo) is RandomMove
     assert [p.name for p in players] == ["Alice", "Player 2"]
     assert [p.seat for p in players] == [0, 1]
+
+
+def test_computer_players_get_their_own_search():
+    first, second = build_players([("random", None), ("random", None)])
+
+    assert first.search_algo is not second.search_algo
 
 
 # ---------------------------------------------------------------- main

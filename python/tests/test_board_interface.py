@@ -1,6 +1,8 @@
 """
 Behaviour every `Board` implementation must share. Runs against each class in `BOARDS`.
 """
+from random         import Random
+
 import pytest
 
 from nagrica.grid.boards         import Board
@@ -167,3 +169,100 @@ def test_release_undoes_capture(board: Board):
     assert board.owner((0, 0))  == -1
     assert board.owner((0, 1))  == -1
     assert set(board.in_play)   == ALL_COORDS
+
+
+# ---------------------------------------------------------------- copy
+
+
+def snapshot(board: Board) -> tuple:
+    """Everything observable about a board, through the public interface only."""
+    coords = [Coord(x, y) for y in range(board.height) for x in range(board.width)]
+
+    return (
+        board.height,
+        board.width,
+        frozenset((coord, direction) for coord in coords for direction in Direction if board.connects(coord, direction)),
+        {coord: board.owner(coord) for coord in coords},
+        frozenset(board.in_play),
+    )
+
+
+def played_board(board_class: type[Board], seed: int) -> Board:
+    """A 4x5 board with some random walls and captures on it."""
+    rng     = Random(seed)
+    board   = board_class(4, 5)
+    coords  = [Coord(x, y) for y in range(4) for x in range(5)]
+
+    for coord in rng.sample(coords, 8):
+        direction = rng.choice([N, E])
+
+        if board.connects(coord, direction):
+            board.place_wall(coord, direction)
+
+    board.capture(rng.randrange(3), rng.sample(coords, 3))
+
+    return board
+
+
+def test_copy_is_same_class(board: Board):
+    assert type(board.copy()) is type(board)
+
+
+def test_copy_of_fresh_board_matches(board: Board):
+    assert snapshot(board.copy()) == snapshot(board)
+
+
+@pytest.mark.parametrize("seed", range(5))
+def test_copy_matches_played_board(board_class: type[Board], seed: int):
+    board = played_board(board_class, seed)
+
+    assert snapshot(board.copy()) == snapshot(board)
+
+
+@pytest.mark.parametrize("seed", range(3))
+def test_copying_leaves_original_unchanged(board_class: type[Board], seed: int):
+    board   = played_board(board_class, seed)
+    before  = snapshot(board)
+
+    board.copy()
+
+    assert snapshot(board) == before
+
+
+def test_copy_of_copy_matches(board_class: type[Board]):
+    board = played_board(board_class, 0)
+
+    assert snapshot(board.copy().copy()) == snapshot(board)
+
+
+def test_changing_copy_leaves_original(board: Board):
+    before  = snapshot(board)
+    clone   = board.copy()
+
+    clone.place_wall((0, 0), E)
+    clone.capture(1, {Coord(2, 1)})
+
+    assert snapshot(board) == before
+
+
+def test_changing_original_leaves_copy(board: Board):
+    clone   = board.copy()
+    before  = snapshot(clone)
+
+    board.place_wall((0, 0), E)
+    board.capture(1, {Coord(2, 1)})
+
+    assert snapshot(clone) == before
+
+
+def test_undoing_on_copy_leaves_original(board: Board):
+    board.place_wall((0, 0), E)
+    board.capture(1, {Coord(2, 1)})
+
+    before  = snapshot(board)
+    clone   = board.copy()
+
+    clone.remove_wall((0, 0), E)
+    clone.release({Coord(2, 1)})
+
+    assert snapshot(board) == before

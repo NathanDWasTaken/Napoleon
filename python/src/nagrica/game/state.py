@@ -32,6 +32,7 @@ class GameState:
         self.scores         = [0] * num_players
         self.history        = []
 
+        self._tick          = 0
         self._ce            = capture_eval
 
 
@@ -75,9 +76,16 @@ class GameState:
 
 
     def copy(self) -> GameState:
-        # TODO
+        new             = GameState.__new__(GameState)
 
-        return self
+        new.board       = self.board.copy()
+        new.num_players = self.num_players
+        new.scores      = self.scores.copy()
+        new.history     = self.history.copy()
+        new._tick       = self._tick
+        new._ce         = self._ce
+
+        return new
 
 
 
@@ -106,6 +114,21 @@ class GameState:
 
         self._register_move(move, capture)
 
+    
+    def undo(self):
+
+        turn    = self.history.pop(-1)
+        move    = turn.move
+        capture = turn.capture
+        seat    = turn.player_seat
+
+        self.scores[seat] -= capture.points
+        self.board.release(capture.coords)
+        self.board.remove_wall(move.coord, move.direction)
+        
+        self._tick -= 1
+
+
 
     def _register_move(self, move: Move, capture: Capture):
         self.history.append(Turn(
@@ -121,10 +144,6 @@ class GameState:
         self.board.capture(player_seat, capture.coords)
 
     
-
-    def undo(self):
-        # TODO
-        ...
 
 
     def eval_capture(self, start: CoordLike, end: CoordLike):
