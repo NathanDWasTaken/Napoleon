@@ -1,7 +1,6 @@
 # Napoleon Grid Capture (Nagrica)
 
-
-This repo serves as implementation of a game: Napoleon Grid Capture
+This repo serves as implementation of a game I used to play a lot in highschool, we called it Napoleon.
 
 
 ## Rules
@@ -16,16 +15,16 @@ As the game goes on, more and more cells will have been captured, while the play
 
 
 ## Features
-- [ ] Working Basics
-- [ ] Working AI
+- [X] Working Basics
+- [X] Working AI
 - [ ] Interactive Implemenations:
-    - [ ] CLI
+    - [X] CLI
     - [ ] Tkinter/Pygame
     - [ ] Website
 
 
 ## Personal Goals
-- [ ] Mostly fully implement logic myself (by hand)
+- [X] Mostly fully implement logic myself (by hand)
 - [ ] Optimize logic & game
 - [ ] Create powerfull Computer opponents
 - [ ] Recreate part or all of the code in another language (rust)
