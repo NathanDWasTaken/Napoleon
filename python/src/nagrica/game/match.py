@@ -2,6 +2,7 @@ from .state             import GameState
 from .player            import Player
 
 from nagrica.capture        import CaptureEvaluation, GreedyDFS
+from nagrica.settings       import GameSettings
 from nagrica.grid.boards    import Board, LinkedBoard
 
 
@@ -20,6 +21,7 @@ class Match:
         *,
         capture_eval:   type[CaptureEvaluation] = GreedyDFS,
         board_class:    type[Board]             = LinkedBoard,
+        settings:       GameSettings            = GameSettings(),
     ) -> None:
         self.players        = players
         self.state          = GameState(
@@ -27,7 +29,8 @@ class Match:
             width,
             len(players),
             capture_eval    = capture_eval,
-            board_class     = board_class
+            board_class     = board_class,
+            settings        = settings,
         )
 
 

@@ -1,10 +1,14 @@
-from typing             import cast
+from typing             import cast, Callable
 
-from nagrica.ai.eval.eval import EvaluationAlgorithm
+from nagrica.ai.eval    import EvaluationAlgorithm
 from nagrica.game       import GameState, Move
 
 from .search            import SearchAlgorithm
 
+from nagrica.ui         import render_board
+
+
+render_state: Callable[[GameState], str] = lambda state: render_board(state.board)
 
 
 class Max_N(SearchAlgorithm):
@@ -22,17 +26,13 @@ class Max_N(SearchAlgorithm):
         self,
         gameState:  GameState,
         *,
-        depth:      int = 0
+        depth:      int = 1
     ) -> list[float]:
         """
         Simple Implementation without pruning
         """
 
-        if gameState.finished:
-            return cast(list[float], gameState.scores)
-
-
-        if depth == self.max_depth:
+        if gameState.finished or depth == self.max_depth:
             return self.eval_algo.evaluate(gameState)
 
         current_seat    = gameState.current_seat
@@ -47,32 +47,44 @@ class Max_N(SearchAlgorithm):
 
             gameState.undo()
 
-            if values[current_seat] > best_values[current_seat]:
+            if self._move_value_is_better(current_seat, best_values, values):
                 best_values = values
 
 
         return best_values
 
 
+    @staticmethod
+    def _move_value_is_better(seat: int, best_values: list[float], values: list[float]) -> bool:
+        val         = values[seat]
+        best_val    = best_values[seat]
 
-        
+        # Value for player is better than best so far
+        # or
+        # Value for player is equal  and the other players have less
+        return (
+            (val > best_val)
+                or
+            (val == best_val and sum(values) < sum(best_values))
+        )
 
 
 
     def select_move(self, gameState: GameState) -> Move:
-        best_move           = None
-        best_value: float   = float("-inf")
-        seat: int           = gameState.current_seat
+        best_move                   = None
+        best_values: list[float]    = [float("-inf")] * gameState.num_players
+        seat: int                   = gameState.current_seat
         
         for move in gameState.legal_moves():
             gameState.apply(move)
 
-            value = self._recurse_eval(gameState)[seat]
+            values  = self._recurse_eval(gameState)
 
             gameState.undo()
 
-            if value > best_value:
-                best_value  = value
+            if self._move_value_is_better(seat, best_values, values):
+                best_values = values
                 best_move   = move
 
+        
         return cast(Move, best_move)

@@ -1,56 +1,29 @@
 from argparse           import ArgumentParser, ArgumentTypeError, Namespace
-from collections.abc    import Callable
 
-from nagrica.ai         import CurrentScore, Max_N, RandomMove, SearchAlgorithm
+from nagrica.cli        import AI_HELP, AI_TYPES, add_game_args, game_settings, parse_ai, split_name
 from nagrica.game       import Player
 from nagrica.game.match import Match
 from nagrica.players    import ComputerPlayer, HumanPlayer
 from nagrica.ui         import render_board
 
 
-# Builds a player from its name and seat
-PlayerFactory = Callable[[str, int], Player]
-
-
-def _computer(search: Callable[[], SearchAlgorithm]) -> PlayerFactory:
-    """
-    Factory for a computer player. Each player gets its own search instance,
-    so two computers never share state (e.g. a random number generator).
-    """
-    return lambda name, seat: ComputerPlayer(name, seat, search_algo=search())
-
-
-# Player types selectable from the CLI. Register new (AI) players here
-PLAYER_TYPES: dict[str, PlayerFactory] = {
-    "human":    HumanPlayer,
-    "random":   _computer(RandomMove),
-    "maxn":     _computer(lambda: Max_N(CurrentScore())),
-}
-
 DEFAULT_PLAYERS = [("human", None), ("human", None)]
 
 
 
-def _positive_int(value: str) -> int:
-    number = int(value)
-
-    if number < 1:
-        raise ArgumentTypeError(f"must be at least 1, got {value}")
-
-    return number
-
-
 def _player_spec(value: str) -> tuple[str, str | None]:
     """
-    Parse `TYPE` or `TYPE:NAME`, e.g. `human` or `human:Alice`
+    Parse `human` or an AI spec, with an optional name: e.g. `human=Alice` or `maxn:3=Bob`
     """
-    kind, _, name   = value.partition(":")
-    kind            = kind.lower()
+    spec, name = split_name(value)
 
-    if kind not in PLAYER_TYPES:
-        raise ArgumentTypeError(f"unknown player type '{kind}' (choose from: {', '.join(PLAYER_TYPES)})")
+    if spec.split(":")[0] == "human":
+        if spec != "human":
+            raise ArgumentTypeError("human takes no options (name a player with TYPE=NAME, e.g. human=Alice)")
+    else:
+        parse_ai(spec)  # Validate now, so mistakes show as usage errors
 
-    return kind, name or None
+    return spec, name
 
 
 
@@ -60,26 +33,16 @@ def parse_args(argv: list[str] | None = None) -> Namespace:
         description = "Play Napoleon Grid Capture.",
     )
 
-    parser.add_argument(
-        "--height",
-        type    = _positive_int,
-        default = 4,
-        help    = "board height (default: %(default)s)",
-    )
-    parser.add_argument(
-        "--width",
-        type    = _positive_int,
-        default = 4,
-        help    = "board width (default: %(default)s)",
-    )
+    add_game_args(parser)
+
     parser.add_argument(
         "-p", "--player",
         dest    = "players",
         action  = "append",
         type    = _player_spec,
-        metavar = "TYPE[:NAME]",
+        metavar = "TYPE[:OPTION...][=NAME]",
         help    = f"add a player, in turn order. Repeat for each player. "
-                  f"Types: {', '.join(PLAYER_TYPES)} (default: two human players)",
+                  f"Types: human, {', '.join(AI_TYPES)}. {AI_HELP} (default: two human players)",
     )
 
     args = parser.parse_args(argv)
@@ -95,10 +58,21 @@ def parse_args(argv: list[str] | None = None) -> Namespace:
 
 
 def build_players(specs: list[tuple[str, str | None]]) -> list[Player]:
-    return [
-        PLAYER_TYPES[kind](name or f"Player {seat + 1}", seat)
-        for seat, (kind, name) in enumerate(specs)
-    ]
+    """
+    Each computer player gets its own search instance,
+    so two computers never share state (e.g. a random number generator).
+    """
+    players: list[Player] = []
+
+    for seat, (spec, name) in enumerate(specs):
+        name = name or f"Player {seat + 1}"
+
+        if spec == "human":
+            players.append(HumanPlayer(name, seat))
+        else:
+            players.append(ComputerPlayer(name, seat, search_algo=parse_ai(spec)(None)))
+
+    return players
 
 
 def print_results(match: Match) -> None:
@@ -120,7 +94,7 @@ def print_results(match: Match) -> None:
 def main(argv: list[str] | None = None) -> None:
     args    = parse_args(argv)
     players = build_players(args.players)
-    match   = Match(players, height=args.height, width=args.width)
+    match   = Match(players, height=args.height, width=args.width, settings=game_settings(args))
 
     try:
         match.start()

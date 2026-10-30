@@ -1,3 +1,4 @@
+from .match         import Match
 from .move          import Move
 from .player        import Player
 from .state         import GameState
@@ -6,6 +7,7 @@ from .exceptions    import IllegalMove
 
 
 __all__ = [
+    "Match",
     "Move",
     "Player",
     "GameState",

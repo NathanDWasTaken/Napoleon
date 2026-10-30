@@ -8,5 +8,5 @@ from nagrica.capture    import Capture
 @dataclass(frozen=True)
 class Turn:
     player_seat:    int
-    move:           Move
+    move:           Move | None
     capture:        Capture

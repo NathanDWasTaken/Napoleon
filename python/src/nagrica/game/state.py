@@ -2,8 +2,10 @@ from .move              import Move
 from .turn              import Turn
 from .exceptions        import IllegalMove
 
+from nagrica.settings   import GameSettings, LastCellResolution
 from nagrica.grid       import Board, CoordLike, Direction
 from nagrica.capture    import Capture, CaptureEvaluation
+from nagrica.exceptions import NagricaError
 
 
 class GameState:
@@ -14,8 +16,8 @@ class GameState:
     # List of played moves. 
     history:        list[Turn]
 
-    _tick:          int     = 0
     _ce:            type[CaptureEvaluation]
+    _settings:      GameSettings
     
 
     def __init__(
@@ -26,14 +28,15 @@ class GameState:
         *,
         capture_eval:   type[CaptureEvaluation],
         board_class:    type[Board],
+        settings:       GameSettings    = GameSettings()
     ):
         self.board          = board_class(height, width)
         self.num_players    = num_players
         self.scores         = [0] * num_players
         self.history        = []
 
-        self._tick          = 0
         self._ce            = capture_eval
+        self._settings      = settings
 
 
     @property
@@ -42,7 +45,11 @@ class GameState:
 
     @property
     def current_seat(self):
-        return self._tick % self.num_players
+        return self.tick % self.num_players
+
+    @property
+    def tick(self):
+        return len(self.history)
 
     
     def is_legal(self, move: Move) -> bool:
@@ -82,8 +89,8 @@ class GameState:
         new.num_players = self.num_players
         new.scores      = self.scores.copy()
         new.history     = self.history.copy()
-        new._tick       = self._tick
         new._ce         = self._ce
+        new._settings   = self._settings
 
         return new
 
@@ -103,45 +110,66 @@ class GameState:
 
         self.board.place_wall(coord, direction)
 
-        capture     = self.eval_capture(coord, coord.to_neighbor(direction))
+        capture         = self.eval_capture(coord, coord.to_neighbor(direction))
+        is_last_move    = capture.coords and (self.board.num_in_play == 2)
 
 
-        if capture.coords:
-            if self.board.num_in_play == 2:
-                capture = Capture(frozenset(self.board.in_play))
+        if is_last_move and (self._settings.LASTCELLRESOLUTION == LastCellResolution.CURRENT_PLAYER):
+            capture = Capture(frozenset(self.board.in_play))
 
-            self._register_capture(self.current_seat, capture)
 
-        self._register_move(move, capture)
+        self._register_turn(self.current_seat, move, capture)
+
+        
+        # Register last cell to next player. This does not involve a move
+        if is_last_move and (self._settings.LASTCELLRESOLUTION == LastCellResolution.NEXT_PLAYER):
+            self._register_turn(
+                self.current_seat,
+                None,
+                Capture(frozenset(self.board.in_play))
+            )
+
 
     
     def undo(self):
+        turn = self._unregister_turn()
 
+        # Move is None if this was the last Cell given to the next player (LastCellResolution == NEXT_PLAYER).
+        # That Turn came from the previous move, so undo that move as well
+        if turn.move is None:
+            self._unregister_turn()
+
+
+    def _unregister_turn(self) -> Turn:
         turn    = self.history.pop(-1)
         move    = turn.move
         capture = turn.capture
         seat    = turn.player_seat
 
+
         self.scores[seat] -= capture.points
         self.board.release(capture.coords)
-        self.board.remove_wall(move.coord, move.direction)
-        
-        self._tick -= 1
+
+        if move is not None:
+            self.board.remove_wall(move.coord, move.direction)
+
+        return turn
 
 
+    def _register_turn(self, player_seat: int, move: Move | None, capture: Capture):
+        if move is None and not len(list(self.board.in_play)) == 1:
+            raise NagricaError("Move of turn can only be None if this is the last Cell being given to the next person")
 
-    def _register_move(self, move: Move, capture: Capture):
         self.history.append(Turn(
-            self.current_seat,
+            player_seat,
             move,
             capture
         ))
-        self._tick += 1
 
-
-    def _register_capture(self, player_seat: int, capture: Capture):
-        self.scores[player_seat]    += capture.points
-        self.board.capture(player_seat, capture.coords)
+        # If there was a capture, apply to board
+        if capture.points:
+            self.scores[player_seat] += capture.points
+            self.board.capture(player_seat, capture.coords)
 
     
 

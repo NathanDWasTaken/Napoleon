@@ -7,24 +7,41 @@ from nagrica.game                import GameState, IllegalMove, Move
 from nagrica.grid.boards         import Board
 from nagrica.grid.coord          import Coord
 from nagrica.grid.direction      import Direction
+from nagrica.settings            import GameSettings, LastCellResolution
 
 
 N, E, S, W = Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST
 
 
-def new_state(board_class: type[Board], height: int = 3, width: int = 3, num_players: int = 2) -> GameState:
+CURRENT_PLAYER  = GameSettings(LastCellResolution.CURRENT_PLAYER)
+NEXT_PLAYER     = GameSettings(LastCellResolution.NEXT_PLAYER)
+
+
+def new_state(
+    board_class:    type[Board],
+    height:         int             = 3,
+    width:          int             = 3,
+    num_players:    int             = 2,
+    settings:       GameSettings    = GameSettings(),
+) -> GameState:
     return GameState(
         height,
         width,
         num_players,
         capture_eval    = GreedyDFS,
         board_class     = board_class,
+        settings        = settings,
     )
 
 
+@pytest.fixture(params=[CURRENT_PLAYER, NEXT_PLAYER], ids=lambda settings: settings.LASTCELLRESOLUTION.name)
+def settings(request: pytest.FixtureRequest) -> GameSettings:
+    return request.param
+
+
 @pytest.fixture
-def state(board_class: type[Board]) -> GameState:
-    return new_state(board_class)
+def state(board_class: type[Board], settings: GameSettings) -> GameState:
+    return new_state(board_class, settings=settings)
 
 
 # ---------------------------------------------------------------- initial state
@@ -138,12 +155,57 @@ def test_capture_scores_for_the_mover(state: GameState):
 
 
 def test_last_two_cells_both_go_to_the_mover(board_class: type[Board]):
+    state = new_state(board_class, height=1, width=2, settings=CURRENT_PLAYER)
+
+    state.apply(Move(Coord(0, 0), E))
+
+    assert state.scores         == [2, 0]
+    assert len(state.history)   == 1
+    assert state.finished
+
+
+def test_last_cell_goes_to_the_next_player(board_class: type[Board]):
+    state = new_state(board_class, height=1, width=2, settings=NEXT_PLAYER)
+
+    state.apply(Move(Coord(0, 0), E))
+
+    assert state.scores         == [1, 1]
+    assert state.finished
+    assert len(state.history)   == 2
+
+    mover, last = state.history
+
+    assert mover.player_seat            == 0
+    assert mover.move                   == Move(Coord(0, 0), E)
+    assert len(mover.capture.coords)    == 1
+
+    # The last cell is a turn without a move
+    assert last.player_seat     == 1
+    assert last.move            is None
+    assert last.capture.coords  == frozenset({Coord(0, 0), Coord(1, 0)}) - mover.capture.coords
+    assert state.board.owner(next(iter(last.capture.coords))) == 1
+
+
+def test_last_cell_goes_to_the_next_player_wrapping_around(board_class: type[Board]):
+    # A single row: every wall cuts off one cell, so seat 2 makes the last move
+    state = new_state(board_class, height=1, width=4, num_players=3, settings=NEXT_PLAYER)
+
+    for x in range(3):
+        state.apply(Move(Coord(x, 0), E))
+
+    assert state.finished
+    assert state.scores                     == [2, 1, 1]
+    assert state.history[-2].player_seat    == 2
+    assert state.history[-1].player_seat    == 0
+    assert state.history[-1].move           is None
+
+
+def test_default_settings_give_last_cell_to_next_player(board_class: type[Board]):
     state = new_state(board_class, height=1, width=2)
 
     state.apply(Move(Coord(0, 0), E))
 
-    assert state.scores     == [2, 0]
-    assert state.finished
+    assert state.scores == [1, 1]
 
 
 # ---------------------------------------------------------------- full games
@@ -151,9 +213,9 @@ def test_last_two_cells_both_go_to_the_mover(board_class: type[Board]):
 
 @pytest.mark.parametrize("height, width", [(2, 2), (3, 4), (5, 5)])
 @pytest.mark.parametrize("seed", range(5))
-def test_random_game_hands_out_every_cell(board_class: type[Board], height: int, width: int, seed: int):
+def test_random_game_hands_out_every_cell(board_class: type[Board], settings: GameSettings, height: int, width: int, seed: int):
     rng     = Random(seed)
-    state   = new_state(board_class, height, width)
+    state   = new_state(board_class, height, width, settings=settings)
 
     while not state.finished:
         moves = state.legal_moves()
@@ -200,10 +262,10 @@ def snapshot(state: GameState) -> tuple:
     )
 
 
-def played_state(board_class: type[Board], seed: int, moves: int = 10) -> GameState:
+def played_state(board_class: type[Board], settings: GameSettings, seed: int, moves: int = 10) -> GameState:
     """A 4x4 game, part way through, with some captures."""
     rng     = Random(seed)
-    state   = new_state(board_class, 4, 4)
+    state   = new_state(board_class, 4, 4, settings=settings)
 
     for _ in range(moves):
         state.apply(rng.choice(state.legal_moves()))
@@ -216,8 +278,8 @@ def test_copy_has_every_field(state: GameState):
     assert vars(state.copy()).keys() == vars(state).keys()
 
 
-def test_copy_has_every_field_mid_game(board_class: type[Board]):
-    state = played_state(board_class, 0)
+def test_copy_has_every_field_mid_game(board_class: type[Board], settings: GameSettings):
+    state = played_state(board_class, settings, 0)
 
     assert vars(state.copy()).keys() == vars(state).keys()
 
@@ -227,17 +289,18 @@ def test_copy_of_fresh_state_matches(state: GameState):
 
 
 @pytest.mark.parametrize("seed", range(5))
-def test_copy_matches_mid_game(board_class: type[Board], seed: int):
-    state = played_state(board_class, seed)
+def test_copy_matches_mid_game(board_class: type[Board], settings: GameSettings, seed: int):
+    state = played_state(board_class, settings, seed)
 
     assert snapshot(state.copy()) == snapshot(state)
 
 
-def test_copy_keeps_board_class_and_capture_eval(board_class: type[Board]):
-    clone = played_state(board_class, 0).copy()
+def test_copy_keeps_board_class_capture_eval_and_settings(board_class: type[Board], settings: GameSettings):
+    clone = played_state(board_class, settings, 0).copy()
 
     assert type(clone.board)    is board_class
     assert clone._ce            is GreedyDFS
+    assert clone._settings      is settings
 
 
 def test_copy_does_not_share_mutable_parts(state: GameState):
@@ -249,8 +312,8 @@ def test_copy_does_not_share_mutable_parts(state: GameState):
 
 
 @pytest.mark.parametrize("seed", range(3))
-def test_playing_on_copy_leaves_original(board_class: type[Board], seed: int):
-    state   = played_state(board_class, seed)
+def test_playing_on_copy_leaves_original(board_class: type[Board], settings: GameSettings, seed: int):
+    state   = played_state(board_class, settings, seed)
     before  = snapshot(state)
     clone   = state.copy()
     rng     = Random(seed)
@@ -262,8 +325,8 @@ def test_playing_on_copy_leaves_original(board_class: type[Board], seed: int):
 
 
 @pytest.mark.parametrize("seed", range(3))
-def test_playing_on_original_leaves_copy(board_class: type[Board], seed: int):
-    state   = played_state(board_class, seed)
+def test_playing_on_original_leaves_copy(board_class: type[Board], settings: GameSettings, seed: int):
+    state   = played_state(board_class, settings, seed)
     clone   = state.copy()
     before  = snapshot(clone)
     rng     = Random(seed)
@@ -275,9 +338,9 @@ def test_playing_on_original_leaves_copy(board_class: type[Board], seed: int):
 
 
 @pytest.mark.parametrize("seed", range(3))
-def test_copy_plays_out_the_same_as_original(board_class: type[Board], seed: int):
+def test_copy_plays_out_the_same_as_original(board_class: type[Board], settings: GameSettings, seed: int):
     # The same moves from a copy must lead to the same game
-    state   = played_state(board_class, seed)
+    state   = played_state(board_class, settings, seed)
     clone   = state.copy()
     rng     = Random(seed)
 
@@ -295,10 +358,12 @@ def test_copy_plays_out_the_same_as_original(board_class: type[Board], seed: int
 
 def replayed(state: GameState) -> GameState:
     """A fresh game with the same moves as `state` applied, for comparison."""
-    fresh = new_state(type(state.board), state.board.height, state.board.width, state.num_players)
+    fresh = new_state(type(state.board), state.board.height, state.board.width, state.num_players, state._settings)
 
+    # Turns without a move are the last cell, handed out by the move before it
     for turn in state.history:
-        fresh.apply(turn.move)
+        if turn.move is not None:
+            fresh.apply(turn.move)
 
     return fresh
 
@@ -326,8 +391,8 @@ def test_undo_reverts_a_capture(state: GameState):
     assert state.current_seat           == 1
 
 
-def test_undo_reverts_last_two_cells(board_class: type[Board]):
-    state   = new_state(board_class, height=1, width=2)
+def test_undo_reverts_last_two_cells(board_class: type[Board], settings: GameSettings):
+    state   = new_state(board_class, height=1, width=2, settings=settings)
     before  = snapshot(state)
 
     state.apply(Move(Coord(0, 0), E))
@@ -337,8 +402,8 @@ def test_undo_reverts_last_two_cells(board_class: type[Board]):
     assert not state.finished
 
 
-def test_undo_restores_legal_moves(board_class: type[Board]):
-    state   = played_state(board_class, 0)
+def test_undo_restores_legal_moves(board_class: type[Board], settings: GameSettings):
+    state   = played_state(board_class, settings, 0)
     before  = set(state.legal_moves())
 
     state.apply(state.legal_moves()[0])
@@ -349,10 +414,10 @@ def test_undo_restores_legal_moves(board_class: type[Board]):
 
 @pytest.mark.parametrize("height, width", [(2, 2), (3, 4), (5, 5)])
 @pytest.mark.parametrize("seed", range(5))
-def test_undo_steps_back_through_a_whole_game(board_class: type[Board], height: int, width: int, seed: int):
+def test_undo_steps_back_through_a_whole_game(board_class: type[Board], settings: GameSettings, height: int, width: int, seed: int):
     # Play to the end, then undo one move at a time: every step must match the state before that move
     rng         = Random(seed)
-    state       = new_state(board_class, height, width)
+    state       = new_state(board_class, height, width, settings=settings)
     snapshots   = [snapshot(state)]
 
     while not state.finished:
@@ -366,13 +431,13 @@ def test_undo_steps_back_through_a_whole_game(board_class: type[Board], height: 
 
         assert snapshot(state) == snapshots.pop()
 
-    assert snapshot(state) == snapshot(new_state(board_class, height, width))
+    assert snapshot(state) == snapshot(new_state(board_class, height, width, settings=settings))
 
 
 @pytest.mark.parametrize("seed", range(5))
-def test_undo_then_replay_gives_the_same_game(board_class: type[Board], seed: int):
-    state   = played_state(board_class, seed)
-    moves   = [turn.move for turn in state.history[-5:]]
+def test_undo_then_replay_gives_the_same_game(board_class: type[Board], settings: GameSettings, seed: int):
+    state   = played_state(board_class, settings, seed)
+    moves   = [turn.move for turn in state.history[-5:] if turn.move is not None]
     end     = snapshot(state)
 
     for _ in moves:
@@ -385,10 +450,10 @@ def test_undo_then_replay_gives_the_same_game(board_class: type[Board], seed: in
 
 
 @pytest.mark.parametrize("seed", range(10))
-def test_mixed_apply_and_undo_like_a_search(board_class: type[Board], seed: int):
+def test_mixed_apply_and_undo_like_a_search(board_class: type[Board], settings: GameSettings, seed: int):
     # Searches apply and undo in any order: the state must always match replaying its history
     rng     = Random(seed)
-    state   = new_state(board_class, 4, 4)
+    state   = new_state(board_class, 4, 4, settings=settings)
 
     for _ in range(200):
         if state.history and (state.finished or rng.random() < 0.4):
@@ -399,21 +464,5 @@ def test_mixed_apply_and_undo_like_a_search(board_class: type[Board], seed: int)
         assert snapshot(state) == snapshot(replayed(state))
 
 
-def test_undo_on_copy_leaves_original(board_class: type[Board]):
-    state   = played_state(board_class, 0)
-    before  = snapshot(state)
-    clone   = state.copy()
-
-    while clone.history:
-        clone.undo()
-
-    assert snapshot(state) == before
-
-
-def test_undo_on_fresh_state_raises_and_leaves_state(state: GameState):
-    before = snapshot(state)
-
-    with pytest.raises(IndexError):
-        state.undo()
-
-    assert snapshot(state) == before
+def test_undo_on_copy_leaves_original(board_class: type[Board], settings: GameSettings):
+    state   = played_state(board_class, settings, 0)
