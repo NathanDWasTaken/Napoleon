@@ -15,7 +15,7 @@ def random_players(*seeds: int) -> list[ComputerPlayer]:
 def test_match_plays_to_the_end(board_class: type[Board]):
     match = Match(random_players(1, 2), height=4, width=5, board_class=board_class)
 
-    match.start()
+    match.game_loop()
 
     assert match.state.finished
     assert sum(match.state.scores) == 20
@@ -36,8 +36,8 @@ def test_seeded_matches_are_reproducible(board_class: type[Board]):
     first   = Match(random_players(7, 8), height=5, width=5, board_class=board_class)
     second  = Match(random_players(7, 8), height=5, width=5, board_class=board_class)
 
-    first.start()
-    second.start()
+    first.game_loop()
+    second.game_loop()
 
     assert first.state.history  == second.state.history
     assert first.state.scores   == second.state.scores

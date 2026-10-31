@@ -97,7 +97,7 @@ def main(argv: list[str] | None = None) -> None:
     match   = Match(players, height=args.height, width=args.width, settings=game_settings(args))
 
     try:
-        match.start()
+        match.game_loop()
     except (KeyboardInterrupt, EOFError):
         # Ctrl+C, or the end of piped input
         print("\nGame aborted.")

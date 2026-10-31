@@ -1,10 +1,9 @@
-from .state             import GameState
-from .player            import Player
+from .state     import GameState
+from .player    import Player
 
 from nagrica.capture        import CaptureEvaluation, GreedyDFS
 from nagrica.settings       import GameSettings
 from nagrica.grid.boards    import Board, LinkedBoard
-
 
 
 class Match:
@@ -45,7 +44,7 @@ class Match:
 
 
 
-    def start(self):
+    def game_loop(self):
 
         while not self.state.finished:
             player  = self.current_player

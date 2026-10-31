@@ -197,7 +197,7 @@ def play_game(
     for move in opening:
         match.state.apply(move)
 
-    match.start()
+    match.game_loop()
 
     return GameResult(
         group       = tuple(contestant.name for contestant in lineup),

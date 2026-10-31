@@ -1,4 +1,6 @@
+import asyncio
 from typing             import cast, Callable
+from logging            import getLogger
 
 from nagrica.ai.eval    import EvaluationAlgorithm
 from nagrica.game       import GameState, Move
@@ -8,50 +10,47 @@ from .search            import SearchAlgorithm
 from nagrica.ui         import render_board
 
 
+logger = getLogger(__name__)
+
+
 render_state: Callable[[GameState], str] = lambda state: render_board(state.board)
 
 
 class Max_N(SearchAlgorithm):
-    max_depth: int
+    max_depth:  int | float
+    max_time:   int | float
 
 
-    def __init__(self, eval_algo: EvaluationAlgorithm, *, max_depth: int = 3) -> None:
-        self.max_depth  = max_depth
+    _signal_end:    asyncio.Event
+
+
+    def __init__(self, eval_algo: EvaluationAlgorithm, *, max_depth: int | None = 3, max_time: int | None = None) -> None:
+        self.max_depth  = max_depth if max_depth is not None else float("+inf")
+        self.max_time   = max_time  if max_time  is not None else float("+inf")
+
+        self._signal_end    = asyncio.Event()
 
         super().__init__(eval_algo)
 
 
 
-    def _recurse_eval(
-        self,
-        gameState:  GameState,
-        *,
-        depth:      int = 1
-    ) -> list[float]:
-        """
-        Simple Implementation without pruning
-        """
-
-        if gameState.finished or depth == self.max_depth:
-            return self.eval_algo.evaluate(gameState)
-
-        current_seat    = gameState.current_seat
-
-        best_values: list[float]    = [float("-inf")] * gameState.num_players
-
-        for move in gameState.legal_moves():
-
-            gameState.apply(move)
-
-            values = self._recurse_eval(gameState, depth=depth + 1)
-
-            gameState.undo()
-
-            if self._move_value_is_better(current_seat, best_values, values):
-                best_values = values
 
 
-        return best_values
+
+    async def _wait_compute_time(self):
+        if self.max_time == float("+inf"):
+            logger.info("Max time disabled, running full DFS.")
+            return
+        
+        logger.info(f"Giving the comp {self.max_time}s")
+        
+        await asyncio.sleep(self.max_time)
+
+        logger.info(f"Ran for {self.max_time}s")
+
+        self._signal_end.set()
+
+
 
 
     @staticmethod
@@ -69,22 +68,92 @@ class Max_N(SearchAlgorithm):
         )
 
 
+    def _dfs_eval(
+        self,
+        gameState:  GameState,
+        max_depth:  int,
+        *,
+        depth:      int                 = 0,
+        move_order: list[Move] | None   = None,
+    ) -> tuple[Move | None, list[float]]:
+        """
+        Simple Implementation without pruning
+        """
 
-    def select_move(self, gameState: GameState) -> Move:
+        if gameState.finished or depth == max_depth:
+            return None, self.eval_algo.evaluate(gameState)
+
+        current_seat    = gameState.current_seat
+
         best_move                   = None
         best_values: list[float]    = [float("-inf")] * gameState.num_players
-        seat: int                   = gameState.current_seat
-        
-        for move in gameState.legal_moves():
+
+        if move_order is None:
+            all_moves = gameState.legal_moves()
+        else:    
+            all_moves = move_order
+
+
+        for move in all_moves:
+
+            if self._signal_end.is_set():
+                return best_move, best_values
+
             gameState.apply(move)
 
-            values  = self._recurse_eval(gameState)
+            _, values = self._dfs_eval(gameState, max_depth=max_depth, depth=depth + 1)
 
             gameState.undo()
 
-            if self._move_value_is_better(seat, best_values, values):
+            if self._move_value_is_better(current_seat, best_values, values):
                 best_values = values
                 best_move   = move
 
+
+        return best_move, best_values
+
+
+    def _iterative_dfs_eval(
+        self,
+        gameState:  GameState,
+    ) -> tuple[Move, list[float]]:
+
+        best_values = None
+        best_move   = None
+
+        depth = 1
+
+        while not self._signal_end.is_set() and depth <= self.max_depth:
+            move_order = None
+            if best_move is not None:
+                move_order = [best_move] + [m for m in gameState.legal_moves() if m != best_move]
+
+            (best_move, best_values) = self._dfs_eval(gameState, max_depth=depth, move_order=move_order)
+            depth += 1
+
+
+        return (cast(Move, best_move), cast(list[float], best_values))
+
+
+
+
+
+    async def async_select_move(self, gameState:  GameState) -> Move:
         
-        return cast(Move, best_move)
+        self._signal_end.clear()
+
+        # If search cancel takes too long, consider implementing forceful stop
+        # async with asyncio.timeout(self.max_time):
+
+        
+        _, (move, _) = await asyncio.gather(
+            self._wait_compute_time(),
+            asyncio.to_thread(self._iterative_dfs_eval, gameState)
+        )
+
+        return move
+        
+
+
+    def select_move(self, gameState: GameState) -> Move:
+        return asyncio.run(self.async_select_move(gameState))
