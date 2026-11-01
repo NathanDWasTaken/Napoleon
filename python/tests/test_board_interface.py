@@ -5,10 +5,11 @@ from random         import Random
 
 import pytest
 
-from nagrica.grid.boards         import Board
-from nagrica.grid.coord          import Coord
-from nagrica.grid.direction      import Direction
-from nagrica.grid.exceptions     import CellOutOfBounds
+from nagrica.grid.boards        import Board
+from nagrica.grid.coord         import Coord
+from nagrica.grid.direction     import Direction
+from nagrica.grid.exceptions    import CoordOutOfBounds
+from nagrica.grid.edge          import Edge
 
 
 N, E, S, W = Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST
@@ -42,11 +43,6 @@ def test_in_play_yields_coords(board: Board):
     assert all(type(coord) is Coord for coord in board.in_play)
 
 
-def test_every_cell_starts_unowned(board: Board):
-    for coord in ALL_COORDS:
-        assert board.owner(coord) == -1
-
-
 @pytest.mark.parametrize("coord, valid", [
     ((0,  0), True),
     ((2,  1), True),
@@ -62,9 +58,10 @@ def test_coord_is_valid(board: Board, coord: tuple[int, int], valid: bool):
 def test_every_in_bounds_neighbour_connects(board: Board):
     for coord in ALL_COORDS:
         for direction in Direction:
-            exists = board.coord_is_valid(coord.to_neighbor(direction))
+            edge    = Edge(coord, direction)
+            exists  = board.coord_is_valid(edge.other)
 
-            assert board.connects(coord, direction) == exists, f"{coord} {direction.name}"
+            assert board.connects(edge) == exists, f"{coord} {direction.name}"
 
 
 @pytest.mark.parametrize("coord, count", [
@@ -75,99 +72,93 @@ def test_every_in_bounds_neighbour_connects(board: Board):
 def test_connection_counts(board_class: type[Board], coord: Coord, count: int):
     board = board_class(3, 3)
 
-    assert sum(board.connects(coord, direction) for direction in Direction) == count
+    assert sum(board.connects(Edge(coord, direction)) for direction in Direction) == count
 
 
 def test_accepts_tuple_coords(board: Board):
-    assert board.connects((0, 0), E)
     assert board.is_in_play((2, 1))
-    assert board.owner((2, 1)) == -1
 
 
 # ---------------------------------------------------------------- walls
 
 
 def test_place_wall_disconnects_both_sides(board: Board):
-    board.place_wall((0, 0), E)
+    board.place_wall(Edge(Coord(0, 0), E))
 
-    assert not board.connects((0, 0), E)
-    assert not board.connects((1, 0), W)
+    assert not board.connects(Edge(Coord(0, 0), E))
+    assert not board.connects(Edge(Coord(1, 0), W))
 
 
 def test_place_wall_leaves_other_connections(board: Board):
-    board.place_wall((0, 0), E)
+    board.place_wall(Edge(Coord(0, 0), E))
 
-    assert board.connects((0, 0), N)
-    assert board.connects((1, 0), E)
-    assert board.connects((1, 0), N)
+    assert board.connects(Edge(Coord(0, 0), N))
+    assert board.connects(Edge(Coord(1, 0), E))
+    assert board.connects(Edge(Coord(1, 0), N))
 
 
 def test_place_wall_leaves_play_area(board: Board):
-    board.place_wall((0, 0), E)
+    board.place_wall(Edge(Coord(0, 0), E))
 
     assert set(board.in_play) == ALL_COORDS
 
 
 def test_place_wall_off_board_raises(board: Board):
-    with pytest.raises(CellOutOfBounds):
-        board.place_wall((0, 0), S)
+    with pytest.raises(CoordOutOfBounds):
+        board.place_wall(Edge(Coord(0, 0), S))
 
 
 def test_remove_wall_restores_connection(board: Board):
-    board.place_wall((0, 0), E)
-    board.remove_wall((0, 0), E)
+    board.place_wall(Edge(Coord(0, 0), E))
+    board.remove_wall(Edge(Coord(0, 0), E))
 
-    assert board.connects((0, 0), E)
-    assert board.connects((1, 0), W)
+    assert board.connects(Edge(Coord(0, 0), E))
+    assert board.connects(Edge(Coord(1, 0), W))
 
 
 def test_remove_wall_from_other_side(board: Board):
-    board.place_wall((0, 0), E)
-    board.remove_wall((1, 0), W)
+    board.place_wall(Edge(Coord(0, 0), E))
+    board.remove_wall(Edge(Coord(1, 0), W))
 
-    assert board.connects((0, 0), E)
-    assert board.connects((1, 0), W)
+    assert board.connects(Edge(Coord(0, 0), E))
+    assert board.connects(Edge(Coord(1, 0), W))
 
 
 def test_remove_wall_off_board_raises(board: Board):
-    with pytest.raises(CellOutOfBounds):
-        board.remove_wall((0, 0), S)
+    with pytest.raises(CoordOutOfBounds):
+        board.remove_wall(Edge(Coord(0, 0), S))
 
 
 # ---------------------------------------------------------------- captures
 
 
-def test_capture_sets_owner_and_removes_from_play(board: Board):
-    board.capture(1, {Coord(0, 0), Coord(0, 1)})
+def test_capture_removes_from_play(board: Board):
+    board.capture({Coord(0, 0), Coord(0, 1)})
 
-    assert board.owner((0, 0))      == 1
-    assert board.owner((0, 1))      == 1
     assert not board.is_in_play((0, 0))
     assert not board.is_in_play((0, 1))
     assert board.num_in_play        == 4
 
 
 def test_capture_leaves_other_cells(board: Board):
-    board.capture(1, {Coord(0, 0)})
+    board.capture({Coord(0, 0)})
 
-    assert board.owner((1, 0)) == -1
+    assert board.is_in_play((1, 0))
     assert set(board.in_play)  == ALL_COORDS - {Coord(0, 0)}
 
 
 def test_capture_accepts_generator(board: Board):
-    board.capture(1, (coord for coord in [Coord(0, 0), Coord(1, 0)]))
+    board.capture((coord for coord in [Coord(0, 0), Coord(1, 0)]))
 
-    assert board.owner((0, 0))  == 1
-    assert board.owner((1, 0))  == 1
+    assert not board.is_in_play((0, 0))
+    assert not board.is_in_play((1, 0))
     assert board.num_in_play    == 4
 
 
 def test_release_undoes_capture(board: Board):
-    board.capture(1, {Coord(0, 0), Coord(0, 1)})
+    board.capture({Coord(0, 0), Coord(0, 1)})
     board.release({Coord(0, 0), Coord(0, 1)})
 
-    assert board.owner((0, 0))  == -1
-    assert board.owner((0, 1))  == -1
     assert set(board.in_play)   == ALL_COORDS
 
 
@@ -181,8 +172,7 @@ def snapshot(board: Board) -> tuple:
     return (
         board.height,
         board.width,
-        frozenset((coord, direction) for coord in coords for direction in Direction if board.connects(coord, direction)),
-        {coord: board.owner(coord) for coord in coords},
+        frozenset((coord, direction) for coord in coords for direction in Direction if board.connects(Edge(coord, direction))),
         frozenset(board.in_play),
     )
 
@@ -196,10 +186,10 @@ def played_board(board_class: type[Board], seed: int) -> Board:
     for coord in rng.sample(coords, 8):
         direction = rng.choice([N, E])
 
-        if board.connects(coord, direction):
-            board.place_wall(coord, direction)
+        if board.connects(Edge(coord, direction)):
+            board.place_wall(Edge(coord, direction))
 
-    board.capture(rng.randrange(3), rng.sample(coords, 3))
+    board.capture(rng.sample(coords, 3))
 
     return board
 
@@ -239,8 +229,8 @@ def test_changing_copy_leaves_original(board: Board):
     before  = snapshot(board)
     clone   = board.copy()
 
-    clone.place_wall((0, 0), E)
-    clone.capture(1, {Coord(2, 1)})
+    clone.place_wall(Edge(Coord(0, 0), E))
+    clone.capture({Coord(2, 1)})
 
     assert snapshot(board) == before
 
@@ -249,20 +239,20 @@ def test_changing_original_leaves_copy(board: Board):
     clone   = board.copy()
     before  = snapshot(clone)
 
-    board.place_wall((0, 0), E)
-    board.capture(1, {Coord(2, 1)})
+    board.place_wall(Edge(Coord(0, 0), E))
+    board.capture({Coord(2, 1)})
 
     assert snapshot(clone) == before
 
 
 def test_undoing_on_copy_leaves_original(board: Board):
-    board.place_wall((0, 0), E)
-    board.capture(1, {Coord(2, 1)})
+    board.place_wall(Edge(Coord(0, 0), E))
+    board.capture({Coord(2, 1)})
 
     before  = snapshot(board)
     clone   = board.copy()
 
-    clone.remove_wall((0, 0), E)
+    clone.remove_wall(Edge(Coord(0, 0), E))
     clone.release({Coord(2, 1)})
 
     assert snapshot(board) == before

@@ -1,4 +1,4 @@
-from nagrica.game.state import GameState
+from nagrica.game.state import BasicGameState
 
 from .eval      import EvaluationAlgorithm
 
@@ -12,7 +12,7 @@ class MarginEval(EvaluationAlgorithm):
         self.base = base
 
 
-    def evaluate(self, gameState: GameState) -> list[float]:
+    def evaluate(self, gameState: BasicGameState) -> list[float]:
         vals = self.base.evaluate(gameState)
 
 

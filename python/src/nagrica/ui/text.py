@@ -1,7 +1,7 @@
 from collections.abc        import Mapping
 
 
-from nagrica.grid           import Board, Coord, Direction
+from nagrica.grid           import Board, Coord, Direction, Edge
 
 
 
@@ -9,14 +9,16 @@ def render_board(
     board:          Board,
     labels:         Mapping[Coord, str] | None  = None,
     cell_width:     int                         = 3,
-    axes:           bool                        = False
+    axes:           bool                        = False,
+    owners:         Mapping[Coord, int] | None  = None
 ) -> str:
     """
     Draw the board as ASCII art. With `axes`, rows are numbered by y on the
     left and right and columns by x above and below, so players can read off
-    coordinates.
+    coordinates. `owners` maps captured cells to the seat that owns them.
     """
     labels = labels or {}
+    owners = owners or {}
 
 
     def _wall_line(y: int, direction: Direction) -> str:
@@ -24,7 +26,7 @@ def render_board(
 
         for x in range(board.width):
             coord   = Coord(x, y)
-            line   += (" " if board.connects(coord, direction) else "-") * cell_width
+            line   += (" " if board.connects(Edge(coord, direction)) else "-") * cell_width
             line   += "+"
 
         return line
@@ -35,11 +37,11 @@ def render_board(
 
         for x in range(board.width):
             coord   = Coord(x, y)
-            owner   = board.owner(coord)
-            content = labels.get(coord) or ("" if owner == -1 else str(owner))
+            owner   = owners.get(coord)
+            content = labels.get(coord) or ("" if owner is None else str(owner))
 
             line   += content.center(cell_width)
-            line   += " " if board.connects(coord, Direction.EAST) else "|"
+            line   += " " if board.connects(Edge(coord, Direction.EAST)) else "|"
 
         return line
 

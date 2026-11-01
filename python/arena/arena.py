@@ -6,9 +6,9 @@ from statistics         import mean
 from time               import perf_counter
 
 from nagrica.ai         import SearchAlgorithm
-from nagrica.capture    import CaptureEvaluation, GreedyDFS
-from nagrica.game       import GameState, Match, Move
-from nagrica.grid       import Board
+from nagrica.capture    import CaptureEvaluation, GreedyCaptureDFS
+from nagrica.game       import BasicGameState, CompleteGameState, Match
+from nagrica.grid       import Board, Edge
 from nagrica.grid.boards import LinkedBoard
 from nagrica.players    import ComputerPlayer
 from nagrica.settings   import GameSettings
@@ -23,6 +23,7 @@ SearchFactory = Callable[[int], SearchAlgorithm]
 class Contestant:
     name:   str
     search: SearchFactory
+    spec:   str             = ""    # The AI spec it was built from, e.g. `maxn:3`. Empty when built in code
 
 
 
@@ -39,7 +40,7 @@ class TimedPlayer(ComputerPlayer):
         super().__init__(name, seat, search_algo=search_algo)
 
 
-    def make_move(self, gameState: GameState) -> Move:
+    def make_move(self, gameState: CompleteGameState) -> Edge:
         start   = perf_counter()
         move    = super().make_move(gameState)
 
@@ -55,7 +56,7 @@ class GameResult:
     lineup:     tuple[str, ...]                 # Contestants by seat
     scores:     tuple[int, ...]                 # By seat
     move_times: tuple[tuple[float, ...], ...]   # Seconds per move, by seat
-    opening:    tuple[Move, ...]        = ()    # Random moves played before the contestants took over
+    opening:    tuple[Edge, ...]        = ()    # Random moves played before the contestants took over
 
 
     @property
@@ -117,7 +118,7 @@ def schedule(contestants: Sequence[Contestant], rounds: int, players_per_game: i
 
 
 
-def _captures(state: GameState, move: Move) -> bool:
+def _captures(state: BasicGameState, move: Edge) -> bool:
     """Whether `move` captures anything (including the last cell going to the next player)"""
     turns = len(state.history)
 
@@ -128,7 +129,7 @@ def _captures(state: GameState, move: Move) -> bool:
     return captured
 
 
-def is_safe(state: GameState, move: Move) -> bool:
+def is_safe(state: BasicGameState, move: Edge) -> bool:
     """
     A move that captures nothing, and leaves the next player nothing to capture
     """
@@ -150,14 +151,14 @@ def random_opening(
     moves:          int,
     rng:            Random,
     settings:       GameSettings                = GameSettings(),
-    capture_eval:   type[CaptureEvaluation]     = GreedyDFS,
+    capture_eval:   type[CaptureEvaluation]     = GreedyCaptureDFS,
     board_class:    type[Board]                 = LinkedBoard,
-) -> tuple[Move, ...]:
+) -> tuple[Edge, ...]:
     """
     Up to `moves` random safe moves, so games between deterministic AIs differ.
     Stops early when no safe move is left, rather than handing out cells.
     """
-    state   = GameState(height, width, num_players, capture_eval=capture_eval, board_class=board_class, settings=settings)
+    state   = BasicGameState(height, width, num_players, capture_eval=capture_eval, board_class=board_class, settings=settings)
     opening = []
 
     for _ in range(moves):
@@ -181,7 +182,8 @@ def play_game(
     height:         int,
     width:          int,
     settings:       GameSettings    = GameSettings(),
-    opening:        Sequence[Move]  = (),
+    board_class:    type[Board]     = LinkedBoard,
+    opening:        Sequence[Edge]  = (),
     seed:           int             = 0,
 ) -> GameResult:
     """
@@ -192,7 +194,7 @@ def play_game(
         TimedPlayer(contestant.name, seat, search_algo=contestant.search(rng.randrange(2 ** 32)))
         for seat, contestant in enumerate(lineup)
     ]
-    match   = Match(players, height, width, settings=settings)
+    match   = Match(players, height, width, board_class=board_class, settings=settings)
 
     for move in opening:
         match.state.apply(move)
@@ -216,6 +218,7 @@ def run_arena(
     width:              int,
     players_per_game:   int                                 = 2,
     settings:           GameSettings                        = GameSettings(),
+    board_class:        type[Board]                         = LinkedBoard,
     opening_moves:      int                                 = 3,
     seed:               int                                 = 0,
     on_result:          Callable[[GameResult, int, int], None] | None = None,
@@ -236,13 +239,13 @@ def run_arena(
 
     lineups     = list(schedule(contestants, rounds, players_per_game))
     openings    = [
-        random_opening(height, width, players_per_game, moves=opening_moves, rng=Random(f"opening-{seed}-{round_}"), settings=settings)
+        random_opening(height, width, players_per_game, moves=opening_moves, rng=Random(f"opening-{seed}-{round_}"), settings=settings, board_class=board_class)
         for round_ in range(rounds)
     ]
     results     = []
 
     for index, (round_, lineup) in enumerate(lineups):
-        result = play_game(lineup, height=height, width=width, settings=settings, opening=openings[round_], seed=seed + index)
+        result = play_game(lineup, height=height, width=width, settings=settings, board_class=board_class, opening=openings[round_], seed=seed + index)
 
         # Group in the order the contestants were given, so results of the same group can be combined
         result = replace(result, group=tuple(name for name in names if name in result.lineup))

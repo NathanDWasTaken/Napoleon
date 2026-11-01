@@ -1,5 +1,5 @@
 from nagrica.exceptions import NagricaError
 
 
-class CellOutOfBounds(NagricaError):
+class CoordOutOfBounds(NagricaError):
     ...

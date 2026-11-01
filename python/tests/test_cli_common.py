@@ -4,7 +4,7 @@ import pytest
 
 from nagrica.ai                  import CurrentScore, Max_N, RandomMove, SimpleEval
 from nagrica.ai.eval             import MarginEval
-from nagrica.cli                 import non_negative_int, parse_ai, parse_evaluation, positive_int, split_name
+from nagrica.cli                 import full_ai_spec, non_negative_int, parse_ai, parse_evaluation, positive_int, split_name
 
 
 # ---------------------------------------------------------------- numbers
@@ -82,8 +82,9 @@ def test_parse_ai():
 def test_parse_ai_defaults():
     maxn = parse_ai("maxn")(None)
 
-    assert maxn.max_depth           == 3
-    assert type(maxn.eval_algo)     is CurrentScore
+    assert maxn.max_depth               == 3
+    assert type(maxn.eval_algo)         is MarginEval
+    assert type(maxn.eval_algo.base)    is CurrentScore
 
 
 @pytest.mark.parametrize("spec", [
@@ -109,3 +110,13 @@ def test_bad_ais(spec: str):
 ])
 def test_split_name(value: str, expected: tuple[str, str | None]):
     assert split_name(value) == expected
+
+
+@pytest.mark.parametrize("spec, full", [
+    ("random",                  "random"),
+    ("maxn",                    "maxn:3:margin(score)"),
+    ("maxn:5",                  "maxn:5:margin(score)"),
+    ("maxn:2:margin(simple)",   "maxn:2:margin(simple)"),
+])
+def test_full_ai_spec_fills_in_defaults(spec: str, full: str):
+    assert full_ai_spec(spec) == full

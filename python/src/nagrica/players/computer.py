@@ -1,5 +1,5 @@
-from nagrica.game   import Player, Move, GameState
-
+from nagrica.game   import Player, CompleteGameState
+from nagrica.grid   import Edge
 
 from nagrica.ai     import SearchAlgorithm
 
@@ -24,5 +24,5 @@ class ComputerPlayer(Player):
         super().__init__(name, seat)
 
 
-    def make_move(self, gameState: GameState) -> Move:
-        return self.search_algo.select_move(gameState)
+    def make_move(self, gameState: CompleteGameState) -> Edge:
+        return self.search_algo.select_move(gameState.to_simple())

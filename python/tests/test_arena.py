@@ -4,15 +4,15 @@ import pytest
 
 from nagrica.ai                  import Max_N, RandomMove
 from nagrica.ai.eval             import CurrentScore, MarginEval
-from nagrica.capture             import GreedyDFS
-from nagrica.game                import GameState, Move
-from nagrica.grid                import Coord, Direction
+from nagrica.capture             import GreedyCaptureDFS
+from nagrica.game                import BasicGameState
+from nagrica.grid                import Edge, Coord, Direction
 from nagrica.grid.boards         import LinkedBoard
 from arena                       import (
     Contestant, GameResult, is_safe, play_game, random_opening, run_arena, schedule,
     standings, matchups, format_standings, format_matchups,
 )
-from arena.__main__              import main, parse_args
+from arena.__main__              import format_settings, main, parse_args
 from nagrica.settings            import GameSettings, LastCellResolution
 
 
@@ -52,8 +52,8 @@ def test_schedule_three_players_per_game():
 # ---------------------------------------------------------------- openings
 
 
-def new_state(height: int = 4, width: int = 4) -> GameState:
-    return GameState(height, width, 2, capture_eval=GreedyDFS, board_class=LinkedBoard)
+def new_state(height: int = 4, width: int = 4) -> BasicGameState:
+    return BasicGameState(height, width, 2, capture_eval=GreedyCaptureDFS, board_class=LinkedBoard)
 
 
 @pytest.mark.parametrize("seed", range(10))
@@ -88,15 +88,15 @@ def test_is_safe():
     state = new_state(3, 3)
 
     # A middle wall leaves every cell connected at least twice: nothing to capture
-    assert is_safe(state, Move(Coord(1, 1), Direction.NORTH))
+    assert is_safe(state, Edge(Coord(1, 1), Direction.NORTH))
 
     # Walling a corner on one side lets the next player close it
-    assert not is_safe(state, Move(Coord(0, 0), Direction.NORTH))
+    assert not is_safe(state, Edge(Coord(0, 0), Direction.NORTH))
 
 
 def test_no_safe_move_after_a_corner_is_half_walled():
     state = new_state(3, 3)
-    state.apply(Move(Coord(0, 0), Direction.NORTH))
+    state.apply(Edge(Coord(0, 0), Direction.NORTH))
 
     # Either you close the corner yourself (a capture), or you leave it for the next player
     assert not any(is_safe(state, move) for move in state.legal_moves())
@@ -135,6 +135,29 @@ def test_play_game_uses_settings():
 
     assert current.scores   == (2, 0)
     assert next_.scores     == (1, 1)
+
+
+class CountingBoard(LinkedBoard):
+    created = 0
+
+    def __init__(self, height: int, width: int) -> None:
+        CountingBoard.created += 1
+        super().__init__(height, width)
+
+
+def test_run_arena_uses_board_class(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(CountingBoard, "created", 0)
+
+    results = run_arena([RANDOM, MAXN], rounds=1, height=3, width=3, board_class=CountingBoard)
+
+    # One board for the opening, plus one per game
+    assert CountingBoard.created == 1 + len(results)
+
+
+def test_cli_board_option(capsys: pytest.CaptureFixture[str]):
+    main(["-c", "random=a", "-c", "random=b", "-r", "1", "--height", "2", "--width", "2", "--board", "linked", "-q"])
+
+    assert "linked board" in capsys.readouterr().out
 
 
 def test_play_game_is_reproducible():
@@ -305,3 +328,24 @@ def test_cli_runs_an_arena(capsys: pytest.CaptureFixture[str]):
 
     assert "4 games on 3x3" in out
     assert "random vs maxn:1" in out
+
+
+def test_format_settings_lists_every_setting():
+    args    = parse_args(["-c", "random", "-c", "maxn:2=deep", "-c", "random", "-r", "3", "--height", "3", "--width", "5", "--board", "bit", "--seed", "9"])
+    text    = format_settings(args)
+
+    assert "random, deep (maxn:2:margin(score)), random#2 (random)" in text
+    assert "3x5 bit"            in text
+    assert "Rounds:"            in text
+    assert "Seed:"              in text
+    # 3 groups of 2, 3 rounds, 2 seat rotations
+    assert text.endswith("18")
+
+
+def test_cli_prints_settings_first(capsys: pytest.CaptureFixture[str]):
+    main(["-c", "random", "-c", "maxn:1", "-r", "1", "--height", "2", "--width", "2", "-q"])
+
+    out = capsys.readouterr().out
+
+    assert out.startswith("Contestants:")
+    assert out.index("Games:") < out.index("games on")

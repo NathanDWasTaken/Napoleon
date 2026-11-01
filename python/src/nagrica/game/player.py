@@ -1,7 +1,7 @@
-from abc        import ABC, abstractmethod
+from abc            import ABC, abstractmethod
 
-from .state     import GameState
-from .move      import Move
+from .state         import CompleteGameState
+from nagrica.grid   import Edge
 
 
 class Player(ABC):
@@ -15,5 +15,5 @@ class Player(ABC):
 
 
     @abstractmethod
-    def make_move(self, gameState: GameState) -> Move:
+    def make_move(self, gameState: CompleteGameState) -> Edge:
         ...

@@ -1,9 +1,9 @@
 from .search    import SearchAlgorithm, RandomMove, Max_N
-from .eval      import EvaluationAlgorithm, CurrentScore, SimpleEval
+from .eval      import EvaluationAlgorithm, CurrentScore, SimpleEval, MarginEval
 
 
 __all__ = [
     "SearchAlgorithm", "RandomMove", "Max_N",
     "EvaluationAlgorithm", "CurrentScore",
-    "SimpleEval"
+    "SimpleEval", "MarginEval",
 ]

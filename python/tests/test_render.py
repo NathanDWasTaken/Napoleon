@@ -1,6 +1,7 @@
 from nagrica.grid.boards         import Board
 from nagrica.grid.coord          import Coord
 from nagrica.grid.direction      import Direction
+from nagrica.grid.edge           import Edge
 from nagrica.ui.text             import render_board
 
 
@@ -18,14 +19,13 @@ def test_empty_board(board_class: type[Board]):
 
 
 def test_owned_cells_and_walls(board_class: type[Board]):
-    board = board_class(3, 3)
+    board   = board_class(3, 3)
+    owners  = {Coord(0, 0): 1, Coord(2, 2): 9}
 
-    board.capture(1, {Coord(0, 0)})
-    board.capture(9, {Coord(2, 2)})
-    board.place_wall((1, 1), Direction.EAST)
-    board.place_wall((1, 1), Direction.NORTH)
+    board.place_wall(Edge(Coord(1, 1), Direction.EAST))
+    board.place_wall(Edge(Coord(1, 1), Direction.NORTH))
 
-    assert render_board(board) == "\n".join([
+    assert render_board(board, owners=owners) == "\n".join([
         "+---+---+---+",
         "|         9 |",
         "+   +---+   +",
@@ -38,9 +38,8 @@ def test_owned_cells_and_walls(board_class: type[Board]):
 
 def test_north_is_printed_on_top(board_class: type[Board]):
     board = board_class(2, 1)
-    board.capture(7, {Coord(0, 1)})
 
-    assert render_board(board).splitlines()[1] == "| 7 |"
+    assert render_board(board, owners={Coord(0, 1): 7}).splitlines()[1] == "| 7 |"
 
 
 def test_labels(board_class: type[Board]):
@@ -57,16 +56,22 @@ def test_labels(board_class: type[Board]):
 
 def test_labels_override_owner(board_class: type[Board]):
     board = board_class(1, 1)
-    board.capture(3, {Coord(0, 0)})
 
-    assert render_board(board, {Coord(0, 0): "x"}).splitlines()[1] == "| x |"
+    assert render_board(board, {Coord(0, 0): "x"}, owners={Coord(0, 0): 3}).splitlines()[1] == "| x |"
+
+
+def test_captured_cells_without_owner_are_blank(board_class: type[Board]):
+    # The board no longer knows owners: only `owners` decides what is drawn
+    board = board_class(1, 1)
+    board.capture({Coord(0, 0)})
+
+    assert render_board(board).splitlines()[1] == "|   |"
 
 
 def test_cell_width(board_class: type[Board]):
     board = board_class(1, 2)
-    board.capture(4, {Coord(1, 0)})
 
-    assert render_board(board, cell_width=5) == "\n".join([
+    assert render_board(board, cell_width=5, owners={Coord(1, 0): 4}) == "\n".join([
         "+-----+-----+",
         "|        4  |",
         "+-----+-----+",

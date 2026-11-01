@@ -2,12 +2,10 @@ from random         import Random
 
 import pytest
 
-from nagrica.capture             import Capture, GreedyDFS
-from nagrica.game                import GameState, IllegalMove, Move
-from nagrica.grid.boards         import Board
-from nagrica.grid.coord          import Coord
-from nagrica.grid.direction      import Direction
-from nagrica.settings            import GameSettings, LastCellResolution
+from nagrica.capture    import Capture, GreedyCaptureDFS
+from nagrica.game       import BasicGameState, IllegalMove
+from nagrica.grid       import Board, Edge, Coord, Direction
+from nagrica.settings   import GameSettings, LastCellResolution
 
 
 N, E, S, W = Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST
@@ -23,12 +21,12 @@ def new_state(
     width:          int             = 3,
     num_players:    int             = 2,
     settings:       GameSettings    = GameSettings(),
-) -> GameState:
-    return GameState(
+) -> BasicGameState:
+    return BasicGameState(
         height,
         width,
         num_players,
-        capture_eval    = GreedyDFS,
+        capture_eval    = GreedyCaptureDFS,
         board_class     = board_class,
         settings        = settings,
     )
@@ -40,14 +38,14 @@ def settings(request: pytest.FixtureRequest) -> GameSettings:
 
 
 @pytest.fixture
-def state(board_class: type[Board], settings: GameSettings) -> GameState:
+def state(board_class: type[Board], settings: GameSettings) -> BasicGameState:
     return new_state(board_class, settings=settings)
 
 
 # ---------------------------------------------------------------- initial state
 
 
-def test_initial_state(state: GameState):
+def test_initial_state(state: BasicGameState):
     assert state.scores         == [0, 0]
     assert state.history        == []
     assert state.current_seat   == 0
@@ -64,56 +62,56 @@ def test_legal_moves_on_fresh_board(board_class: type[Board]):
     assert len(state.legal_moves()) == 2 * 2 + 3 * 1
 
 
-def test_legal_moves_list_each_wall_once(state: GameState):
+def test_legal_moves_list_each_wall_once(state: BasicGameState):
     moves = state.legal_moves()
 
     assert len(set(moves)) == len(moves)
     assert all(move.direction in (N, E) for move in moves)
 
 
-def test_every_legal_move_is_legal(state: GameState):
+def test_every_legal_move_is_legal(state: BasicGameState):
     for move in state.legal_moves():
         assert state.is_legal(move)
 
 
-def test_both_sides_of_a_wall_are_legal(state: GameState):
-    assert state.is_legal(Move(Coord(0, 0), N))
-    assert state.is_legal(Move(Coord(0, 1), S))
+def test_both_sides_of_a_wall_are_legal(state: BasicGameState):
+    assert state.is_legal(Edge(Coord(0, 0), N))
+    assert state.is_legal(Edge(Coord(0, 1), S))
 
 
 @pytest.mark.parametrize("move", [
-    Move(Coord(0, 0), S),   # outer edge
-    Move(Coord(2, 2), E),   # outer edge
-    Move(Coord(5, 5), N),   # off the board
+    Edge(Coord(0, 0), S),   # outer edge
+    Edge(Coord(2, 2), E),   # outer edge
+    Edge(Coord(5, 5), N),   # off the board
 ], ids=["south-edge", "east-edge", "off-board"])
-def test_is_legal_rejects_board_edges(state: GameState, move: Move):
+def test_is_legal_rejects_board_edges(state: BasicGameState, move: Edge):
     assert not state.is_legal(move)
 
 
-def test_is_legal_rejects_existing_wall(state: GameState):
-    state.apply(Move(Coord(0, 0), E))
+def test_is_legal_rejects_existing_wall(state: BasicGameState):
+    state.apply(Edge(Coord(0, 0), E))
 
-    assert not state.is_legal(Move(Coord(0, 0), E))
-    assert not state.is_legal(Move(Coord(1, 0), W))
+    assert not state.is_legal(Edge(Coord(0, 0), E))
+    assert not state.is_legal(Edge(Coord(1, 0), W))
 
 
-def test_is_legal_rejects_captured_cells(state: GameState):
+def test_is_legal_rejects_captured_cells(state: BasicGameState):
     # Seal off (0, 0), then try to wall it in further
-    state.apply(Move(Coord(0, 0), N))
-    state.apply(Move(Coord(0, 0), E))
+    state.apply(Edge(Coord(0, 0), N))
+    state.apply(Edge(Coord(0, 0), E))
 
-    assert not state.is_legal(Move(Coord(0, 0), E))
-    assert Move(Coord(0, 0), E) not in state.legal_moves()
+    assert not state.is_legal(Edge(Coord(0, 0), E))
+    assert Edge(Coord(0, 0), E) not in state.legal_moves()
 
 
-def test_apply_illegal_move_raises(state: GameState):
+def test_apply_illegal_move_raises(state: BasicGameState):
     with pytest.raises(IllegalMove):
-        state.apply(Move(Coord(0, 0), S))
+        state.apply(Edge(Coord(0, 0), S))
 
 
-def test_illegal_move_leaves_state_unchanged(state: GameState):
+def test_illegal_move_leaves_state_unchanged(state: BasicGameState):
     with pytest.raises(IllegalMove):
-        state.apply(Move(Coord(0, 0), S))
+        state.apply(Edge(Coord(0, 0), S))
 
     assert state.history        == []
     assert state.current_seat   == 0
@@ -122,14 +120,14 @@ def test_illegal_move_leaves_state_unchanged(state: GameState):
 # ---------------------------------------------------------------- turns
 
 
-def test_apply_advances_seat_and_records_turn(state: GameState):
-    move = Move(Coord(0, 0), E)
+def test_apply_advances_seat_and_records_turn(state: BasicGameState):
+    move = Edge(Coord(0, 0), E)
     state.apply(move)
 
     assert state.current_seat           == 1
     assert len(state.history)           == 1
     assert state.history[0].player_seat == 0
-    assert state.history[0].move        == move
+    assert state.history[0].wall        == move
     assert state.history[0].capture     == Capture(frozenset())
 
 
@@ -144,12 +142,11 @@ def test_seats_wrap_around(board_class: type[Board]):
 # ---------------------------------------------------------------- captures
 
 
-def test_capture_scores_for_the_mover(state: GameState):
-    state.apply(Move(Coord(0, 0), N))   # seat 0, no capture
-    state.apply(Move(Coord(0, 0), E))   # seat 1, seals off (0, 0)
+def test_capture_scores_for_the_mover(state: BasicGameState):
+    state.apply(Edge(Coord(0, 0), N))   # seat 0, no capture
+    state.apply(Edge(Coord(0, 0), E))   # seat 1, seals off (0, 0)
 
     assert state.scores                 == [0, 1]
-    assert state.board.owner((0, 0))    == 1
     assert not state.board.is_in_play((0, 0))
     assert state.history[-1].capture    == Capture(frozenset({Coord(0, 0)}))
 
@@ -157,7 +154,7 @@ def test_capture_scores_for_the_mover(state: GameState):
 def test_last_two_cells_both_go_to_the_mover(board_class: type[Board]):
     state = new_state(board_class, height=1, width=2, settings=CURRENT_PLAYER)
 
-    state.apply(Move(Coord(0, 0), E))
+    state.apply(Edge(Coord(0, 0), E))
 
     assert state.scores         == [2, 0]
     assert len(state.history)   == 1
@@ -167,7 +164,7 @@ def test_last_two_cells_both_go_to_the_mover(board_class: type[Board]):
 def test_last_cell_goes_to_the_next_player(board_class: type[Board]):
     state = new_state(board_class, height=1, width=2, settings=NEXT_PLAYER)
 
-    state.apply(Move(Coord(0, 0), E))
+    state.apply(Edge(Coord(0, 0), E))
 
     assert state.scores         == [1, 1]
     assert state.finished
@@ -176,14 +173,13 @@ def test_last_cell_goes_to_the_next_player(board_class: type[Board]):
     mover, last = state.history
 
     assert mover.player_seat            == 0
-    assert mover.move                   == Move(Coord(0, 0), E)
+    assert mover.wall                   == Edge(Coord(0, 0), E)
     assert len(mover.capture.coords)    == 1
 
     # The last cell is a turn without a move
     assert last.player_seat     == 1
-    assert last.move            is None
+    assert last.wall            is None
     assert last.capture.coords  == frozenset({Coord(0, 0), Coord(1, 0)}) - mover.capture.coords
-    assert state.board.owner(next(iter(last.capture.coords))) == 1
 
 
 def test_last_cell_goes_to_the_next_player_wrapping_around(board_class: type[Board]):
@@ -191,19 +187,19 @@ def test_last_cell_goes_to_the_next_player_wrapping_around(board_class: type[Boa
     state = new_state(board_class, height=1, width=4, num_players=3, settings=NEXT_PLAYER)
 
     for x in range(3):
-        state.apply(Move(Coord(x, 0), E))
+        state.apply(Edge(Coord(x, 0), E))
 
     assert state.finished
     assert state.scores                     == [2, 1, 1]
     assert state.history[-2].player_seat    == 2
     assert state.history[-1].player_seat    == 0
-    assert state.history[-1].move           is None
+    assert state.history[-1].wall           is None
 
 
 def test_default_settings_give_last_cell_to_next_player(board_class: type[Board]):
     state = new_state(board_class, height=1, width=2)
 
-    state.apply(Move(Coord(0, 0), E))
+    state.apply(Edge(Coord(0, 0), E))
 
     assert state.scores == [1, 1]
 
@@ -226,32 +222,21 @@ def test_random_game_hands_out_every_cell(board_class: type[Board], settings: Ga
     assert sum(state.scores)        == height * width
     assert state.board.num_in_play  == 0
 
-    for seat, score in enumerate(state.scores):
-        owned = [
-            coord
-            for y in range(height)
-            for x in range(width)
-            if state.board.owner(coord := Coord(x, y)) == seat
-        ]
-
-        assert len(owned) == score
-
 
 # ---------------------------------------------------------------- copy
 
 
-def board_snapshot(state: GameState) -> tuple:
+def board_snapshot(state: BasicGameState) -> tuple:
     board   = state.board
     coords  = [Coord(x, y) for y in range(board.height) for x in range(board.width)]
 
     return (
-        frozenset((coord, direction) for coord in coords for direction in Direction if board.connects(coord, direction)),
-        {coord: board.owner(coord) for coord in coords},
+        frozenset((coord, direction) for coord in coords for direction in Direction if board.connects(Edge(coord, direction))),
         frozenset(board.in_play),
     )
 
 
-def snapshot(state: GameState) -> tuple:
+def snapshot(state: BasicGameState) -> tuple:
     """Everything observable about a game state."""
     return (
         board_snapshot(state),
@@ -262,7 +247,7 @@ def snapshot(state: GameState) -> tuple:
     )
 
 
-def played_state(board_class: type[Board], settings: GameSettings, seed: int, moves: int = 10) -> GameState:
+def played_state(board_class: type[Board], settings: GameSettings, seed: int, moves: int = 10) -> BasicGameState:
     """A 4x4 game, part way through, with some captures."""
     rng     = Random(seed)
     state   = new_state(board_class, 4, 4, settings=settings)
@@ -273,7 +258,7 @@ def played_state(board_class: type[Board], settings: GameSettings, seed: int, mo
     return state
 
 
-def test_copy_has_every_field(state: GameState):
+def test_copy_has_every_field(state: BasicGameState):
     # Catches a field added to __init__ but forgotten in copy()
     assert vars(state.copy()).keys() == vars(state).keys()
 
@@ -284,7 +269,7 @@ def test_copy_has_every_field_mid_game(board_class: type[Board], settings: GameS
     assert vars(state.copy()).keys() == vars(state).keys()
 
 
-def test_copy_of_fresh_state_matches(state: GameState):
+def test_copy_of_fresh_state_matches(state: BasicGameState):
     assert snapshot(state.copy()) == snapshot(state)
 
 
@@ -299,11 +284,11 @@ def test_copy_keeps_board_class_capture_eval_and_settings(board_class: type[Boar
     clone = played_state(board_class, settings, 0).copy()
 
     assert type(clone.board)    is board_class
-    assert clone._ce            is GreedyDFS
+    assert clone._ce            is GreedyCaptureDFS
     assert clone._settings      is settings
 
 
-def test_copy_does_not_share_mutable_parts(state: GameState):
+def test_copy_does_not_share_mutable_parts(state: BasicGameState):
     clone = state.copy()
 
     assert clone.board      is not state.board
@@ -356,37 +341,36 @@ def test_copy_plays_out_the_same_as_original(board_class: type[Board], settings:
 # ---------------------------------------------------------------- undo
 
 
-def replayed(state: GameState) -> GameState:
+def replayed(state: BasicGameState) -> BasicGameState:
     """A fresh game with the same moves as `state` applied, for comparison."""
     fresh = new_state(type(state.board), state.board.height, state.board.width, state.num_players, state._settings)
 
     # Turns without a move are the last cell, handed out by the move before it
     for turn in state.history:
-        if turn.move is not None:
-            fresh.apply(turn.move)
+        if turn.wall is not None:
+            fresh.apply(turn.wall)
 
     return fresh
 
 
-def test_undo_reverts_a_plain_move(state: GameState):
+def test_undo_reverts_a_plain_move(state: BasicGameState):
     before = snapshot(state)
 
-    state.apply(Move(Coord(0, 0), E))
+    state.apply(Edge(Coord(0, 0), E))
     state.undo()
 
     assert snapshot(state) == before
 
 
-def test_undo_reverts_a_capture(state: GameState):
-    state.apply(Move(Coord(0, 0), N))
+def test_undo_reverts_a_capture(state: BasicGameState):
+    state.apply(Edge(Coord(0, 0), N))
     before = snapshot(state)
 
-    state.apply(Move(Coord(0, 0), E))   # seat 1 seals off (0, 0)
+    state.apply(Edge(Coord(0, 0), E))   # seat 1 seals off (0, 0)
     state.undo()
 
     assert snapshot(state)              == before
     assert state.scores                 == [0, 0]
-    assert state.board.owner((0, 0))    == -1
     assert state.board.is_in_play((0, 0))
     assert state.current_seat           == 1
 
@@ -395,7 +379,7 @@ def test_undo_reverts_last_two_cells(board_class: type[Board], settings: GameSet
     state   = new_state(board_class, height=1, width=2, settings=settings)
     before  = snapshot(state)
 
-    state.apply(Move(Coord(0, 0), E))
+    state.apply(Edge(Coord(0, 0), E))
     state.undo()
 
     assert snapshot(state) == before
@@ -437,7 +421,7 @@ def test_undo_steps_back_through_a_whole_game(board_class: type[Board], settings
 @pytest.mark.parametrize("seed", range(5))
 def test_undo_then_replay_gives_the_same_game(board_class: type[Board], settings: GameSettings, seed: int):
     state   = played_state(board_class, settings, seed)
-    moves   = [turn.move for turn in state.history[-5:] if turn.move is not None]
+    moves   = [turn.wall for turn in state.history[-5:] if turn.wall is not None]
     end     = snapshot(state)
 
     for _ in moves:

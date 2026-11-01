@@ -6,9 +6,9 @@ import sys
 from argparse           import ArgumentParser, Namespace
 from time               import perf_counter
 
-from nagrica.cli        import AI_HELP, add_game_args, game_settings, non_negative_int, parse_ai, positive_int, split_name
+from nagrica.cli        import AI_HELP, add_game_args, board_class, full_ai_spec, game_settings, non_negative_int, parse_ai, positive_int, split_name
 
-from .arena             import Contestant, GameResult, format_matchups, format_standings, matchups, run_arena, standings
+from .arena             import Contestant, GameResult, format_matchups, format_standings, matchups, run_arena, schedule, standings
 
 
 
@@ -18,7 +18,7 @@ def _contestant(value: str) -> Contestant:
     """
     spec, name = split_name(value)
 
-    return Contestant(name or spec, parse_ai(spec))
+    return Contestant(name or spec, parse_ai(spec), spec)
 
 
 def _unique_names(contestants: list[Contestant]) -> list[Contestant]:
@@ -31,7 +31,7 @@ def _unique_names(contestants: list[Contestant]) -> list[Contestant]:
         seen[contestant.name]   = count
         name                    = contestant.name if count == 1 else f"{contestant.name}#{count}"
 
-        unique.append(Contestant(name, contestant.search))
+        unique.append(Contestant(name, contestant.search, contestant.spec))
 
     return unique
 
@@ -93,6 +93,30 @@ def parse_args(argv: list[str] | None = None) -> Namespace:
 
 
 
+def format_settings(args: Namespace) -> str:
+    """The settings of an arena run, so the output says what was played"""
+    specs       = [full_ai_spec(c.spec) if c.spec else "" for c in args.contestants]
+    contestants = [
+        c.name if spec in ("", c.name) else f"{c.name} ({spec})"
+        for c, spec in zip(args.contestants, specs)
+    ]
+    games       = sum(1 for _ in schedule(args.contestants, args.rounds, args.players_per_game))
+    rows        = [
+        ("Contestants",         ", ".join(contestants)),
+        ("Board",               f"{args.height}x{args.width} {args.board}"),
+        ("Last cell",           args.last_cell),
+        ("Rounds",              args.rounds),
+        ("Players per game",    args.players_per_game),
+        ("Opening moves",       args.opening),
+        ("Seed",                args.seed),
+        ("Games",               games),
+    ]
+    width       = max(len(label) for label, _ in rows) + 1
+
+    return "\n".join(f"{label + ':':<{width}}  {value}" for label, value in rows)
+
+
+
 def _progress(result: GameResult, done: int, total: int) -> None:
     end = "\n" if done == total else ""
 
@@ -102,6 +126,10 @@ def _progress(result: GameResult, done: int, total: int) -> None:
 
 def main(argv: list[str] | None = None) -> None:
     args    = parse_args(argv)
+
+    print(format_settings(args))
+    print()
+
     start   = perf_counter()
 
     results = run_arena(
@@ -111,12 +139,13 @@ def main(argv: list[str] | None = None) -> None:
         width               = args.width,
         players_per_game    = args.players_per_game,
         settings            = game_settings(args),
+        board_class         = board_class(args),
         opening_moves       = args.opening,
         seed                = args.seed,
         on_result           = None if args.quiet else _progress,
     )
 
-    print(f"{len(results)} games on {args.height}x{args.width} in {perf_counter() - start:.1f}s")
+    print(f"{len(results)} games on {args.height}x{args.width} {args.board} board in {perf_counter() - start:.1f}s")
     print()
     print(format_standings(standings(results)))
     print()

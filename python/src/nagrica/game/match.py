@@ -1,15 +1,14 @@
-from .state     import GameState
+from .state     import CompleteGameState
 from .player    import Player
 
-from nagrica.capture        import CaptureEvaluation, GreedyDFS
+from nagrica.capture        import CaptureEvaluation, GreedyCaptureDFS
 from nagrica.settings       import GameSettings
 from nagrica.grid.boards    import Board, LinkedBoard
 
 
 class Match:
-    state:      GameState
+    state:      CompleteGameState
     players:    list[Player]
-
 
 
     def __init__(
@@ -18,12 +17,12 @@ class Match:
         height:         int,
         width:          int,
         *,
-        capture_eval:   type[CaptureEvaluation] = GreedyDFS,
+        capture_eval:   type[CaptureEvaluation] = GreedyCaptureDFS,
         board_class:    type[Board]             = LinkedBoard,
         settings:       GameSettings            = GameSettings(),
     ) -> None:
         self.players        = players
-        self.state          = GameState(
+        self.state          = CompleteGameState(
             height,
             width,
             len(players),
@@ -40,7 +39,6 @@ class Match:
     @property
     def current_player(self) -> Player:
         return self.players[self.state.current_seat]
-
 
 
 

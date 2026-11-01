@@ -1,6 +1,7 @@
 from random         import Random
 
-from nagrica.game   import GameState, Move
+from nagrica.game   import BasicGameState
+from nagrica.grid   import Edge
 from .search        import SearchAlgorithm
 
 
@@ -14,7 +15,7 @@ class RandomMove(SearchAlgorithm):
 
 
 
-    def select_move(self, gameState: GameState) -> Move:
+    def select_move(self, gameState: BasicGameState) -> Edge:
         all_moves = gameState.legal_moves()
 
         return self.random.choice(all_moves)

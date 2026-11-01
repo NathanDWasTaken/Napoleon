@@ -9,11 +9,15 @@ from collections.abc    import Callable
 
 from nagrica.ai         import CurrentScore, EvaluationAlgorithm, Max_N, RandomMove, SearchAlgorithm, SimpleEval
 from nagrica.ai.eval    import MarginEval
+from nagrica.grid.boards import Board, BitBoard, LinkedBoard
 from nagrica.settings   import GameSettings, LastCellResolution
 
 
 # Builds a fresh search from a seed (for searches with randomness). None means unseeded
 SearchFactory = Callable[[int | None], SearchAlgorithm]
+
+# A parsed AI: its factory, and its full spec with every default filled in (e.g. `maxn` -> `maxn:3:score`)
+ParsedAI = tuple[SearchFactory, str]
 
 
 
@@ -54,6 +58,12 @@ LAST_CELL = {
     "next":     LastCellResolution.NEXT_PLAYER,
 }
 
+# Board implementations selectable from the CLI. Register new ones here
+BOARDS: dict[str, type[Board]] = {
+    "linked":   LinkedBoard,
+    "bit":      BitBoard,
+}
+
 
 def add_game_args(parser: ArgumentParser) -> None:
     """Board size and game settings"""
@@ -65,10 +75,20 @@ def add_game_args(parser: ArgumentParser) -> None:
         default = "next",
         help    = "who gets the last cell: the current or the next player (default: %(default)s)",
     )
+    parser.add_argument(
+        "--board",
+        choices = BOARDS,
+        default = "linked",
+        help    = "board implementation (default: %(default)s)",
+    )
 
 
 def game_settings(args: Namespace) -> GameSettings:
     return GameSettings(LAST_CELL[args.last_cell])
+
+
+def board_class(args: Namespace) -> type[Board]:
+    return BOARDS[args.board]
 
 
 
@@ -118,36 +138,39 @@ def parse_evaluation(spec: str) -> Callable[[], EvaluationAlgorithm]:
 # ---------------------------------------------------------------- AIs
 
 
-DEFAULT_MAX_DEPTH = 3
+DEFAULT_MAX_DEPTH   = 3
+DEFAULT_EVALUATION  = "margin(score)"
 
 
-def _random(options: list[str]) -> SearchFactory:
+def _random(options: list[str]) -> ParsedAI:
     if options:
         raise ArgumentTypeError("random takes no options")
 
-    return lambda seed: RandomMove(seed=seed)
+    return lambda seed: RandomMove(seed=seed), "random"
 
 
-def _maxn(options: list[str]) -> SearchFactory:
+def _maxn(options: list[str]) -> ParsedAI:
     """maxn[:DEPTH[:EVAL]]"""
     if len(options) > 2:
         raise ArgumentTypeError("maxn takes at most a depth and an evaluation: maxn[:DEPTH[:EVAL]]")
 
     depth       = positive_int(options[0]) if options else DEFAULT_MAX_DEPTH
-    evaluation  = parse_evaluation(options[1] if len(options) > 1 else "score")
+    eval_spec   = options[1] if len(options) > 1 else DEFAULT_EVALUATION
+    evaluation  = parse_evaluation(eval_spec)
 
-    return lambda seed: Max_N(evaluation(), max_depth=depth)
+    return lambda seed: Max_N(evaluation(), max_depth=depth), f"maxn:{depth}:{eval_spec}"
 
 
 # AI types selectable from the CLI, built from the options after the type. Register new AIs here
-AI_TYPES: dict[str, Callable[[list[str]], SearchFactory]] = {
+AI_TYPES: dict[str, Callable[[list[str]], ParsedAI]] = {
     "random":   _random,
     "maxn":     _maxn,
 }
 
 AI_HELP = (
     f"AIs: random, maxn[:DEPTH[:EVAL]] with EVAL one of {', '.join(EVALUATIONS)}, "
-    f"optionally wrapped in {', '.join(f'{m}(...)' for m in EVAL_MODIFIERS)}. "
+    f"optionally wrapped in {', '.join(f'{m}(...)' for m in EVAL_MODIFIERS)} "
+    f"(default: maxn:{DEFAULT_MAX_DEPTH}:{DEFAULT_EVALUATION}). "
     f"E.g. \"maxn:3:margin(simple)\" (quote the brackets in the shell)"
 )
 
@@ -156,6 +179,17 @@ def parse_ai(spec: str) -> SearchFactory:
     """
     Parse `TYPE[:OPTION...]`, e.g. `random` or `maxn:3:margin(score)`
     """
+    return _parse_ai(spec)[0]
+
+
+def full_ai_spec(spec: str) -> str:
+    """
+    The spec with every default filled in, e.g. `maxn` -> `maxn:3:score`
+    """
+    return _parse_ai(spec)[1]
+
+
+def _parse_ai(spec: str) -> ParsedAI:
     kind, *options = spec.split(":")
 
     if kind not in AI_TYPES:

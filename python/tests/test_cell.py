@@ -1,7 +1,7 @@
 import pytest
 
 from nagrica.grid.boards.linked_board import Cell
-from nagrica.grid.exceptions     import CellOutOfBounds
+from nagrica.grid.exceptions     import CoordOutOfBounds
 from nagrica.grid.coord          import Coord
 from nagrica.grid.direction      import Direction
 
@@ -10,7 +10,6 @@ def test_new_cell():
     cell = Cell(Coord(2, 3))
 
     assert cell.coord       == Coord(2, 3)
-    assert cell.owned       == -1
     assert cell.connections == {}
 
 
@@ -53,5 +52,5 @@ def test_walk_follows_connection():
 
 
 def test_walk_without_connection_raises():
-    with pytest.raises(CellOutOfBounds):
+    with pytest.raises(CoordOutOfBounds):
         Cell(Coord(0, 0)).walk(Direction.NORTH)

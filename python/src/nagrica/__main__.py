@@ -1,6 +1,6 @@
 from argparse           import ArgumentParser, ArgumentTypeError, Namespace
 
-from nagrica.cli        import AI_HELP, AI_TYPES, add_game_args, game_settings, parse_ai, split_name
+from nagrica.cli        import AI_HELP, AI_TYPES, add_game_args, board_class, game_settings, parse_ai, split_name
 from nagrica.game       import Player
 from nagrica.game.match import Match
 from nagrica.players    import ComputerPlayer, HumanPlayer
@@ -94,7 +94,7 @@ def print_results(match: Match) -> None:
 def main(argv: list[str] | None = None) -> None:
     args    = parse_args(argv)
     players = build_players(args.players)
-    match   = Match(players, height=args.height, width=args.width, settings=game_settings(args))
+    match   = Match(players, height=args.height, width=args.width, board_class=board_class(args), settings=game_settings(args))
 
     try:
         match.game_loop()

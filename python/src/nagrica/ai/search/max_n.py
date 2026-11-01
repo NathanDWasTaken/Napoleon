@@ -3,7 +3,8 @@ from typing             import cast, Callable
 from logging            import getLogger
 
 from nagrica.ai.eval    import EvaluationAlgorithm
-from nagrica.game       import GameState, Move
+from nagrica.game       import BasicGameState
+from nagrica.grid       import Edge
 
 from .search            import SearchAlgorithm
 
@@ -13,7 +14,7 @@ from nagrica.ui         import render_board
 logger = getLogger(__name__)
 
 
-render_state: Callable[[GameState], str] = lambda state: render_board(state.board)
+render_state: Callable[[BasicGameState], str] = lambda state: render_board(state.board)
 
 
 class Max_N(SearchAlgorithm):
@@ -70,12 +71,12 @@ class Max_N(SearchAlgorithm):
 
     def _dfs_eval(
         self,
-        gameState:  GameState,
+        gameState:  BasicGameState,
         max_depth:  int,
         *,
         depth:      int                 = 0,
-        move_order: list[Move] | None   = None,
-    ) -> tuple[Move | None, list[float]]:
+        move_order: list[Edge] | None   = None,
+    ) -> tuple[Edge | None, list[float]]:
         """
         Simple Implementation without pruning
         """
@@ -115,8 +116,8 @@ class Max_N(SearchAlgorithm):
 
     def _iterative_dfs_eval(
         self,
-        gameState:  GameState,
-    ) -> tuple[Move, list[float]]:
+        gameState:  BasicGameState,
+    ) -> tuple[Edge, list[float]]:
 
         best_values = None
         best_move   = None
@@ -132,13 +133,13 @@ class Max_N(SearchAlgorithm):
             depth += 1
 
 
-        return (cast(Move, best_move), cast(list[float], best_values))
+        return (cast(Edge, best_move), cast(list[float], best_values))
 
 
 
 
 
-    async def async_select_move(self, gameState:  GameState) -> Move:
+    async def async_select_move(self, gameState:  BasicGameState) -> Edge:
         
         self._signal_end.clear()
 
@@ -155,5 +156,5 @@ class Max_N(SearchAlgorithm):
         
 
 
-    def select_move(self, gameState: GameState) -> Move:
+    def select_move(self, gameState: BasicGameState) -> Edge:
         return asyncio.run(self.async_select_move(gameState))

@@ -1,10 +1,10 @@
 from .capture       import Capture, CaptureEvaluation
 
-from nagrica.grid   import Board, Coord, CoordLike
+from nagrica.grid   import Board, Edge, Coord, CoordLike
 
 
 
-class GreedyDFS(CaptureEvaluation):
+class GreedyCaptureDFS(CaptureEvaluation):
     board: Board
     
     def _traverse(
@@ -20,7 +20,7 @@ class GreedyDFS(CaptureEvaluation):
         directions  = self._direction_order(offset)
         
         for direction in directions:            
-            if not self.board.connects(point, direction):
+            if not self.board.connects(Edge(point, direction)):
                 continue
 
             next = point.to_neighbor(direction)

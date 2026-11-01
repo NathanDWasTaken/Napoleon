@@ -1,16 +1,16 @@
-from typing     import Iterable
+from typing     import Self
 
 from .board     import Board
 
+
 from nagrica.grid.direction     import Direction
 from nagrica.grid.coord         import Coord, CoordLike
-from nagrica.grid.exceptions    import CellOutOfBounds
-
+from nagrica.grid.exceptions    import CoordOutOfBounds
+from nagrica.grid.edge          import Edge
 
 
 class Cell:
     coord:          Coord
-    owned:          int = -1
 
     connections:    dict[Direction, Cell]
 
@@ -33,7 +33,7 @@ class Cell:
 
     def walk(self, direction: Direction) -> Cell:
         if not self.connects(direction):
-            raise CellOutOfBounds()
+            raise CoordOutOfBounds()
 
         return self.connections[direction]
 
@@ -41,25 +41,21 @@ class Cell:
     def __repr__(self) -> str:
         connections_str = ", ".join(f"{d.name[0]}=({c.coord.x},{c.coord.y})" for d, c in self.connections.items())
 
-        return f"Cell(coord={self.coord}, owned={self.owned}, connections=({connections_str}))"
+        return f"Cell(coord={self.coord}, connections=({connections_str}))"
         
 
 
 
 class LinkedBoard(Board):
-
-    _in_play:       set[Coord]
     _cells:         dict[Coord, Cell]
 
     def build_board(self, height: int, width: int):
-        self._in_play   = set()
         self._cells     = {}
 
         for y in range(height):
             for x in range(width):
                 coord   = Coord(x, y)
                 self._create_cell(coord)
-                self._in_play.add(coord)
 
                 if 0 < y:
                     self._link_cell(coord, Direction.SOUTH)
@@ -68,77 +64,44 @@ class LinkedBoard(Board):
                     self._link_cell(coord, Direction.WEST)
 
 
-    def place_wall(self, coord: CoordLike, direction: Direction):
-        cell    = self[coord]
-        other   = cell.walk(direction)
+    def place_wall(self, wall: Edge):
+        self.ensure_valid_edge(wall)
+
+        cell    = self[wall.coord]
+        other   = cell.walk(wall.direction)
          
-        cell .connections.pop(direction, None)
-        other.connections.pop(direction.opposite, None)
+        cell .connections.pop(wall.direction, None)
+        other.connections.pop(wall.direction.opposite, None)
 
 
-    def remove_wall(self, coord: CoordLike, direction: Direction):
-        if not self.coord_is_valid(Coord(*coord).to_neighbor(direction)):
-            raise CellOutOfBounds()
+    def remove_wall(self, wall: Edge):
+        self.ensure_valid_edge(wall)
 
-        self._link_cell(coord, direction)
-
-
-    def capture(self, player_seat: int, coords: Iterable[Coord]):
-        coords          = set(coords)
-        self._in_play  -= coords
-        for coord in coords:
-            self[coord].owned = player_seat
-
-    def release(self, coords: Iterable[Coord]):
-        coords          = set(coords)
-        self._in_play  |= coords
-        for coord in coords:
-            self[coord].owned = -1
+        self._link_cell(wall.coord, wall.direction)
 
 
-    def owner(self, coord: CoordLike) -> int:
-        return self[coord].owned
-
-    def connects(self, coord: CoordLike, direction: Direction) -> bool:
-        return self[coord].connects(direction)
-    
-
-    def is_in_play(self, coord: Coord | tuple[int, int]) -> bool:
-        return coord in self._in_play
-
-    @property
-    def in_play(self) -> Iterable[Coord]:
-        return self._in_play
+    def connects(self, edge: Edge) -> bool:
+        if not self.edge_is_valid(edge):
+            return False
+        return self[edge.coord].connects(edge.direction)
 
 
-    def copy(self):
-        new             = LinkedBoard.__new__(LinkedBoard)
-        
-        new.height      = self.height
-        new.width       = self.width
+    def copy(self) -> Self:
+        new = super().copy()
 
-        new._in_play    = self._in_play.copy()
-
-        new._cells      = {}
-
+        new._cells  = {}
 
         for y in range(self.height):
             for x in range(self.width):
                 coord   = Coord(x, y)
                 new._create_cell(coord)
 
-                old_cell    = self[coord]
-                new_cell    = new[coord]
-
-                new_cell.owned = old_cell.owned
 
                 for dir in [Direction.SOUTH, Direction.WEST]:
-                    if old_cell.connects(dir):
+                    if self[coord].connects(dir):
                         new._link_cell(coord, dir)
 
         return new
-
-
 
 
     # Specific to this class

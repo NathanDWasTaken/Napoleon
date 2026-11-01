@@ -17,15 +17,16 @@ from random         import Random
 import pytest
 
 from nagrica.capture.capture         import CaptureEvaluation
-from nagrica.capture.greedy_dfs      import GreedyDFS
+from nagrica.capture.greedy_capture_dfs      import GreedyCaptureDFS
 from nagrica.grid.boards             import Board
 from nagrica.grid.coord              import Coord
 from nagrica.grid.direction          import Direction
+from nagrica.grid.edge               import Edge
 from nagrica.ui.text                 import render_board
 
 
 # Add new CaptureEvaluation implementations here to run every scenario against them
-EVALUATORS = [GreedyDFS]
+EVALUATORS = [GreedyCaptureDFS]
 
 
 @pytest.fixture(params=EVALUATORS, ids=lambda cls: cls.__name__)
@@ -59,15 +60,15 @@ def board_from_ascii(board_class: type[Board], picture: str) -> tuple[Board, dic
 
         for x in range(width):
             if row > 0 and wall_line[4 * x + 1 : 4 * x + 4] == "---":
-                board.place_wall((x, y), Direction.NORTH)
+                board.place_wall(Edge(Coord(x, y), Direction.NORTH))
 
             if x < width - 1 and content[4 * x + 4] == "|":
-                board.place_wall((x, y), Direction.EAST)
+                board.place_wall(Edge(Coord(x, y), Direction.EAST))
 
             for char in content[4 * x + 1 : 4 * x + 4].strip():
                 labels.setdefault(char, set()).add(Coord(x, y))
 
-    board.capture(0, labels.get("x", set()))
+    board.capture(labels.get("x", set()))
 
     # Out of play regions were captured, so they must be walled off from the play area
     for coord in board.in_play:
@@ -87,7 +88,7 @@ def neighbours(board: Board, coord: Coord) -> list[Coord]:
     return [
         coord.to_neighbor(direction)
         for direction in Direction
-        if board.connects(coord, direction)
+        if board.connects(Edge(coord, direction))
     ]
 
 
@@ -107,10 +108,10 @@ def component(board: Board, start: Coord) -> set[Coord]:
 
 def play(board: Board, evaluator: CaptureEvaluation, coord: Coord, direction: Direction) -> frozenset[Coord]:
     """Place a wall and resolve the capture, the same way `GameState.apply` does."""
-    board.place_wall(coord, direction)
+    board.place_wall(Edge(coord, direction))
 
     captured = evaluator.run(coord, coord.to_neighbor(direction)).coords
-    board.capture(0, captured)
+    board.capture(captured)
 
     return captured
 
@@ -294,14 +295,14 @@ def test_random_games_match_flood_fill(evaluator: type[CaptureEvaluation], board
             (coord, direction)
             for coord in sorted(board.in_play)
             for direction in (Direction.NORTH, Direction.EAST)
-            if board.connects(coord, direction)
+            if board.connects(Edge(coord, direction))
         ]
         if not legal:
             break
 
         coord, direction    = rng.choice(legal)
         goal                = coord.to_neighbor(direction)
-        board.place_wall(coord, direction)
+        board.place_wall(Edge(coord, direction))
 
         start_side  = component(board, coord)
         goal_side   = component(board, goal)
@@ -317,7 +318,7 @@ def test_random_games_match_flood_fill(evaluator: type[CaptureEvaluation], board
 
         assert captured == expected, f"move {coord} {direction.name}\n{board}"
 
-        board.capture(0, captured)
+        board.capture(captured)
 
     # Every split hands out the smaller side, so the game always ends on one cell
     assert board.num_in_play == 1

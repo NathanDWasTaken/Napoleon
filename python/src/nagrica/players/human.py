@@ -1,8 +1,8 @@
 import re
 from random         import choice
 
-from nagrica.game   import Player, Move, GameState
-from nagrica.grid   import Coord, Direction
+from nagrica.game   import Player, CompleteGameState
+from nagrica.grid   import Edge, Coord, Direction
 from nagrica.ui     import render_board
 
 from .exceptions    import InvalidInputPattern
@@ -33,7 +33,7 @@ class HumanPlayer(Player):
             
 
 
-    def _parse_input(self, user_input: str, height: int, width: int) -> Move:
+    def _parse_input(self, user_input: str, height: int, width: int) -> Edge:
         def convert_negative(value: int, max_value: int) ->  int:
             if value >= 0:
                 return value
@@ -43,7 +43,7 @@ class HumanPlayer(Player):
         if   match := re.match(self.INPUT_PATTERN_1, user_input.upper()):
             x, y, d = match.groups()
 
-            return Move(
+            return Edge(
                 Coord(
                     convert_negative(int(x), width),
                     convert_negative(int(y), height)
@@ -66,7 +66,7 @@ class HumanPlayer(Player):
             try:
                 direction   = coord1.direction_to(coord2)
                 
-                return Move(
+                return Edge(
                     coord1,
                     direction
                 )
@@ -77,7 +77,7 @@ class HumanPlayer(Player):
 
 
 
-    def make_move(self, gameState: GameState) -> Move:
+    def make_move(self, gameState: CompleteGameState) -> Edge:
         while True:
             print(render_board(gameState.board, axes=True))
             print()

@@ -1,7 +1,8 @@
-from abc            import ABC, abstractmethod
+from abc    import ABC, abstractmethod
 
-from ..eval.eval    import EvaluationAlgorithm
-from nagrica.game   import GameState, Move
+from nagrica.ai.eval    import EvaluationAlgorithm
+from nagrica.game       import BasicGameState
+from nagrica.grid       import Edge
 
 
 
@@ -16,5 +17,5 @@ class SearchAlgorithm(ABC):
 
 
     @abstractmethod
-    def select_move(self, gameState: GameState) -> Move:
+    def select_move(self, gameState: BasicGameState) -> Edge:
         ...

@@ -5,7 +5,8 @@ from nagrica.ai                  import Max_N, RandomMove
 from nagrica.ai.eval             import MarginEval
 from nagrica.players             import ComputerPlayer, HumanPlayer
 from nagrica.settings            import LastCellResolution
-from nagrica.cli                 import game_settings
+from nagrica.cli                 import BOARDS, board_class, game_settings
+from nagrica.grid.boards         import BitBoard, LinkedBoard
 
 
 # ---------------------------------------------------------------- arguments
@@ -18,6 +19,12 @@ def test_defaults():
     assert args.width       == 4
     assert args.players     == [("human", None), ("human", None)]
     assert game_settings(args).LASTCELLRESOLUTION == LastCellResolution.NEXT_PLAYER
+    assert board_class(args)    is LinkedBoard
+
+
+@pytest.mark.parametrize("name, cls", [("linked", LinkedBoard), ("bit", BitBoard)])
+def test_board_option(name: str, cls: type):
+    assert board_class(parse_args(["--board", name])) is cls
 
 
 def test_player_specs():
@@ -42,7 +49,8 @@ def test_player_specs():
     ["--height", "-2"],
     ["--height", "four"],
     ["--last-cell", "first"],
-], ids=["one-player", "unknown-type", "human-options", "zero-depth", "unknown-eval", "zero-width", "negative-height", "non-number", "unknown-last-cell"])
+    ["--board", "array"],
+], ids=["one-player", "unknown-type", "human-options", "zero-depth", "unknown-eval", "zero-width", "negative-height", "non-number", "unknown-last-cell", "unknown-board"])
 def test_invalid_arguments_exit(argv: list[str]):
     with pytest.raises(SystemExit):
         parse_args(argv)
@@ -87,6 +95,21 @@ def test_main_plays_a_random_game(capsys: pytest.CaptureFixture[str]):
     assert "Ann: "  in output
     assert "Bob: "  in output
     assert "Winner: " in output or "Draw between: " in output
+
+
+def test_main_uses_board_option(monkeypatch: pytest.MonkeyPatch):
+    used: list[type] = []
+
+    class SpyBoard(LinkedBoard):
+        def __init__(self, height: int, width: int) -> None:
+            used.append(type(self))
+            super().__init__(height, width)
+
+    monkeypatch.setitem(BOARDS, "spy", SpyBoard)
+
+    main(["-p", "random", "-p", "random", "--height", "2", "--width", "2", "--board", "spy"])
+
+    assert used == [SpyBoard]
 
 
 def test_main_handles_abort(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
