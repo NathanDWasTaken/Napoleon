@@ -2,8 +2,7 @@ from random         import Random
 
 import pytest
 
-from nagrica.capture    import Capture, GreedyCaptureDFS
-from nagrica.game       import BasicGameState, IllegalMove
+from nagrica.game       import BasicGameState, Capture, IllegalMove
 from nagrica.grid       import Board, Edge, Coord, Direction
 from nagrica.settings   import GameSettings, LastCellResolution
 
@@ -26,7 +25,6 @@ def new_state(
         height,
         width,
         num_players,
-        capture_eval    = GreedyCaptureDFS,
         board_class     = board_class,
         settings        = settings,
     )
@@ -280,11 +278,10 @@ def test_copy_matches_mid_game(board_class: type[Board], settings: GameSettings,
     assert snapshot(state.copy()) == snapshot(state)
 
 
-def test_copy_keeps_board_class_capture_eval_and_settings(board_class: type[Board], settings: GameSettings):
+def test_copy_keeps_board_class_and_settings(board_class: type[Board], settings: GameSettings):
     clone = played_state(board_class, settings, 0).copy()
 
     assert type(clone.board)    is board_class
-    assert clone._ce            is GreedyCaptureDFS
     assert clone._settings      is settings
 
 

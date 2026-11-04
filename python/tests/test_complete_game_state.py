@@ -6,7 +6,6 @@ from random         import Random
 
 import pytest
 
-from nagrica.capture    import GreedyCaptureDFS
 from nagrica.game       import CompleteGameState, BasicGameState
 from nagrica.grid       import Edge, Board, Coord, Direction
 from nagrica.settings   import GameSettings, LastCellResolution
@@ -31,7 +30,6 @@ def new_state[T: BasicGameState](
         height,
         width,
         num_players,
-        capture_eval    = GreedyCaptureDFS,
         board_class     = board_class,
         settings        = settings,
     )
@@ -363,11 +361,10 @@ def test_to_simple_matches_mid_game(board_class: type[Board], settings: GameSett
     assert basic_snapshot(state.to_simple()) == basic_snapshot(state)
 
 
-def test_to_simple_keeps_board_class_capture_eval_and_settings(board_class: type[Board], settings: GameSettings):
+def test_to_simple_keeps_board_class_and_settings(board_class: type[Board], settings: GameSettings):
     simple = played_state(board_class, settings, 0).to_simple()
 
     assert type(simple.board)   is board_class
-    assert simple._ce           is GreedyCaptureDFS
     assert simple._settings     is settings
     assert simple.num_players   == 2
 

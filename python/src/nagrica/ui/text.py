@@ -3,6 +3,8 @@ from collections.abc        import Mapping
 
 from nagrica.grid           import Board, Coord, Direction, Edge
 
+from .notation              import column_name
+
 
 
 def render_board(
@@ -10,15 +12,25 @@ def render_board(
     labels:         Mapping[Coord, str] | None  = None,
     cell_width:     int                         = 3,
     axes:           bool                        = False,
-    owners:         Mapping[Coord, int] | None  = None
+    owners:         Mapping[Coord, int] | None  = None,
+    notation:       bool                        = False,
 ) -> str:
     """
     Draw the board as ASCII art. With `axes`, rows are numbered by y on the
     left and right and columns by x above and below, so players can read off
-    coordinates. `owners` maps captured cells to the seat that owns them.
+    coordinates. With `notation` as well, the axes use the names of game records
+    instead: columns a, b, c, ... and rows from 1. `owners` maps captured cells
+    to the seat that owns them.
     """
     labels = labels or {}
     owners = owners or {}
+
+
+    def _column_label(x: int) -> str:
+        return column_name(x) if notation else str(x)
+
+    def _row_label(y: int) -> str:
+        return str(y + 1) if notation else str(y)
 
 
     def _wall_line(y: int, direction: Direction) -> str:
@@ -51,14 +63,14 @@ def render_board(
         line = " "
 
         for x in range(board.width):
-            line   += str(x).center(cell_width)
+            line   += _column_label(x).center(cell_width)
             line   += " "
 
         return line.rstrip()
 
 
     # Room for the widest y label plus a space, or nothing without axes
-    label_width = len(str(board.height - 1)) if axes else 0
+    label_width = len(_row_label(board.height - 1)) if axes else 0
     margin      = " " * (label_width + 1) if axes else ""
 
     lines: list[str] = []
@@ -68,8 +80,8 @@ def render_board(
 
     # NORTH is +y, so print the highest row first
     for y in reversed(range(board.height)):
-        left_label  = f"{y:>{label_width}} " if axes else ""
-        right_label = f" {y}"                if axes else ""
+        left_label  = f"{_row_label(y):>{label_width}} " if axes else ""
+        right_label = f" {_row_label(y)}"                if axes else ""
 
         lines.append(margin     + _wall_line(y, Direction.NORTH))
         lines.append(left_label + _content_line(y) + right_label)

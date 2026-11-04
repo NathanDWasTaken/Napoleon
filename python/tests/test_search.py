@@ -1,11 +1,10 @@
 from nagrica.ai                  import RandomMove
-from nagrica.capture             import GreedyCaptureDFS
 from nagrica.game                import BasicGameState
 from nagrica.grid.boards         import Board
 
 
 def new_state(board_class: type[Board], height: int = 3, width: int = 3) -> BasicGameState:
-    return BasicGameState(height, width, 2, capture_eval=GreedyCaptureDFS, board_class=board_class)
+    return BasicGameState(height, width, 2, board_class=board_class)
 
 
 # ---------------------------------------------------------------- RandomMove

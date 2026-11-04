@@ -2,10 +2,10 @@ from typing             import cast
 
 from .turn              import Turn
 from .exceptions        import IllegalMove
+from .capture           import Capture
 
 from nagrica.settings   import GameSettings, LastCellResolution
-from nagrica.grid       import Board, Edge, Direction, Coord, CoordLike
-from nagrica.capture    import Capture, CaptureEvaluation
+from nagrica.grid       import Board, Edge, Direction, Coord
 from nagrica.exceptions import NagricaError
 
 
@@ -16,8 +16,6 @@ class BasicGameState:
 
     # List of played moves. 
     history:        list[Turn]
-
-    _ce:            type[CaptureEvaluation]
     _settings:      GameSettings
     
 
@@ -27,7 +25,6 @@ class BasicGameState:
         width:          int,
         num_players:    int,
         *,
-        capture_eval:   type[CaptureEvaluation],
         board_class:    type[Board],
         settings:       GameSettings    = GameSettings()
     ):
@@ -35,8 +32,6 @@ class BasicGameState:
         self.num_players    = num_players
         self.scores         = [0] * num_players
         self.history        = []
-
-        self._ce            = capture_eval
         self._settings      = settings
 
 
@@ -89,7 +84,8 @@ class BasicGameState:
 
         self.board.place_wall(move)
 
-        capture         = self.eval_capture(move.coord, move.other)
+        region          = self.board.separated_region(move.coord, move.other)
+        capture         = self.calc_capture(region)
         is_last_move    = capture.coords and (self.board.num_in_play == 2)
 
 
@@ -107,6 +103,17 @@ class BasicGameState:
                 None,
                 Capture(frozenset(self.board.in_play))
             )
+
+
+    def calc_capture(self, region: frozenset[Coord]) -> Capture:
+
+        capture = region
+        
+        if len(region) > self.board.num_in_play / 2:
+            capture    = set(self.board.in_play) - region
+
+
+        return Capture(frozenset(capture))
 
 
     
@@ -169,12 +176,6 @@ class BasicGameState:
         This is seperated because the search algorithm does not need this information
         """
 
-    def eval_capture(self, start: CoordLike, end: CoordLike):
-        ce      = self._ce(self.board)
-
-        return ce.run(start, end)
-
-
     def copy(self):
         new = self.__new__(self.__class__)
 
@@ -186,7 +187,6 @@ class BasicGameState:
         other.num_players = self.num_players
         other.scores      = self.scores.copy()
         other.history     = self.history.copy()
-        other._ce         = self._ce
         other._settings   = self._settings
 
         return other
@@ -206,14 +206,13 @@ class CompleteGameState(BasicGameState):
         width:          int,
         num_players:    int,
         *,
-        capture_eval:   type[CaptureEvaluation],
         board_class:    type[Board],
         settings:       GameSettings    = GameSettings()
     ):
         self.captured   = {}
         self.placed     = {}
         
-        super().__init__(height, width, num_players, capture_eval=capture_eval, board_class=board_class, settings=settings)
+        super().__init__(height, width, num_players, board_class=board_class, settings=settings)
 
 
     def copy(self) -> CompleteGameState:

@@ -2,7 +2,6 @@ from collections.abc    import Iterator
 
 import pytest
 
-from nagrica.capture            import GreedyCaptureDFS
 from nagrica.game               import BasicGameState, CompleteGameState
 from nagrica.grid.boards        import LinkedBoard
 from nagrica.grid               import Edge, Coord, Direction
@@ -16,7 +15,7 @@ HEIGHT, WIDTH = 5, 4
 
 
 def new_state(height: int = 3, width: int = 3) -> CompleteGameState:
-    return CompleteGameState(height, width, 2, capture_eval=GreedyCaptureDFS, board_class=LinkedBoard)
+    return CompleteGameState(height, width, 2, board_class=LinkedBoard)
 
 
 def feed_input(monkeypatch: pytest.MonkeyPatch, *lines: str) -> None:

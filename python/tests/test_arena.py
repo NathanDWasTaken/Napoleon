@@ -4,7 +4,6 @@ import pytest
 
 from nagrica.ai                  import Max_N, RandomMove
 from nagrica.ai.eval             import CurrentScore, MarginEval
-from nagrica.capture             import GreedyCaptureDFS
 from nagrica.game                import BasicGameState
 from nagrica.grid                import Edge, Coord, Direction
 from nagrica.grid.boards         import LinkedBoard
@@ -53,7 +52,7 @@ def test_schedule_three_players_per_game():
 
 
 def new_state(height: int = 4, width: int = 4) -> BasicGameState:
-    return BasicGameState(height, width, 2, capture_eval=GreedyCaptureDFS, board_class=LinkedBoard)
+    return BasicGameState(height, width, 2, board_class=LinkedBoard)
 
 
 @pytest.mark.parametrize("seed", range(10))

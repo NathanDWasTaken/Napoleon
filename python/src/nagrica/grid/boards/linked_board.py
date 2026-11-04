@@ -2,7 +2,7 @@ from typing     import Self
 
 from .board     import Board
 
-
+from nagrica.grid.vector        import Vector
 from nagrica.grid.direction     import Direction
 from nagrica.grid.coord         import Coord, CoordLike
 from nagrica.grid.exceptions    import CoordOutOfBounds
@@ -105,6 +105,60 @@ class LinkedBoard(Board):
 
 
     # Specific to this class
+
+    @staticmethod
+    def _direction_order(offset: Vector[int]) -> tuple[Direction, ...]:
+        return tuple(sorted(
+            Direction,
+            key     = lambda d: offset.similarity(d),
+            reverse = True
+        ))
+
+
+
+
+    def _traverse(
+        self,
+        point:          Coord
+    ):
+        self.visited.add(point)
+        
+        if point == self._goal:
+            return True
+        
+        offset      = point.offset_to(self._goal)
+        directions  = self._direction_order(offset)
+
+        for direction in directions:
+            if not self.connects(Edge(point, direction)):
+                continue
+
+            neighbor = point.to_neighbor(direction)
+
+            if neighbor in self.visited:
+                continue
+
+            result = self._traverse(neighbor)
+
+            if result:
+                return True
+
+        return False
+
+
+    def separated_region(self, start: CoordLike, end: CoordLike) -> frozenset[Coord]:
+        start, end                  = Coord(*start), Coord(*end)
+        self.visited: set[Coord]    = set()
+        self._goal                  = end
+
+        result = self._traverse(start)
+
+        if result:
+            return frozenset()
+
+        return frozenset(self.visited)
+
+
 
     def _create_cell(self, coord: CoordLike):
         coord               = Coord(*coord)

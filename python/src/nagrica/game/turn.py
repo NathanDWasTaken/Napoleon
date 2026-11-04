@@ -1,8 +1,7 @@
 from dataclasses    import dataclass
 
-
-from nagrica.grid       import Edge
-from nagrica.capture    import Capture
+from .capture       import Capture
+from nagrica.grid   import Edge
 
 
 @dataclass(frozen=True)

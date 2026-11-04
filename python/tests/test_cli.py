@@ -1,3 +1,8 @@
+import io
+import sys
+
+from pathlib                    import Path
+
 import pytest
 
 from nagrica.__main__            import build_players, main, parse_args
@@ -6,7 +11,9 @@ from nagrica.ai.eval             import MarginEval
 from nagrica.players             import ComputerPlayer, HumanPlayer
 from nagrica.settings            import LastCellResolution
 from nagrica.cli                 import BOARDS, board_class, game_settings
+from nagrica.grid                import Coord, Direction, Edge
 from nagrica.grid.boards         import BitBoard, LinkedBoard
+from nagrica.ui                  import parse_record
 
 
 # ---------------------------------------------------------------- arguments
@@ -118,3 +125,105 @@ def test_main_handles_abort(monkeypatch: pytest.MonkeyPatch, capsys: pytest.Capt
     main(["-p", "human", "-p", "random"])
 
     assert "Game aborted." in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------- record and replay
+
+
+class FakeStdin(io.StringIO):
+    def __init__(self, text: str = "", tty: bool = False) -> None:
+        super().__init__(text)
+        self.tty = tty
+
+    def isatty(self) -> bool:
+        return self.tty
+
+
+def scores_line(out: str) -> list[str]:
+    return [line for line in out.splitlines() if line.startswith(("A: ", "B: "))]
+
+
+def test_record_then_replay_gives_the_same_result(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
+    path = tmp_path / "game.ngn"
+
+    main(["-p", "random=A", "-p", "maxn:1=B", "--height", "3", "--width", "3", "--last-cell", "current", "--record", str(path)])
+
+    played = capsys.readouterr().out
+    record = parse_record(path.read_text(encoding="utf-8"))
+
+    assert record.players       == [("A", "random"), ("B", "maxn:1:margin(score)")]
+    assert (record.height, record.width, record.last_cell) == (3, 3, "current")
+    assert record.result        != "*"
+    assert f"Game recorded to {path}" in played
+
+    monkeypatch.setattr(sys, "stdin", FakeStdin())
+    main(["--replay", str(path)])
+
+    replayed = capsys.readouterr().out
+
+    assert scores_line(replayed) == scores_line(played)
+    assert record.result == "-".join(line.split(": ")[1] for line in scores_line(played))
+    assert "1. A: " in replayed
+
+
+def test_aborted_game_is_recorded_as_unfinished(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    path    = tmp_path / "game.ngn"
+    answers = iter(["0 0 N", "exit"])
+
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
+
+    main(["-p", "human", "-p", "human", "--height", "2", "--width", "2", "--record", str(path)])
+
+    record = parse_record(path.read_text(encoding="utf-8"))
+
+    assert record.result    == "*"
+    assert record.moves     == [Edge(Coord(0, 0), Direction.NORTH)]
+
+
+def test_replay_waits_for_enter_and_can_quit(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
+    path = tmp_path / "game.ngn"
+    path.write_text('[Height "2"]\n[Width "2"]\n[LastCell "next"]\n[Player1 "A"]\n[Player2 "B"]\n\n1. a1N b1N 2. a1E *', encoding="utf-8")
+
+    answers = iter(["", "q"])
+    monkeypatch.setattr(sys, "stdin", FakeStdin(tty=True))
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
+
+    main(["--replay", str(path)])
+
+    out = capsys.readouterr().out
+
+    assert "1. A: a1N" in out
+    assert "B: b1N" not in out
+
+
+def test_replay_of_unfinished_game(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
+    path = tmp_path / "game.ngn"
+    path.write_text('[Height "2"]\n[Width "2"]\n[LastCell "next"]\n[Player1 "A"]\n[Player2 "B"]\n\n1. a1N b1N *', encoding="utf-8")
+
+    monkeypatch.setattr(sys, "stdin", FakeStdin())
+    main(["--replay", str(path)])
+
+    out = capsys.readouterr().out
+
+    assert "1. B: b1N" in out
+    assert "The record ends before the game is finished." in out
+
+
+@pytest.mark.parametrize("content, message", [
+    (None,                                                                                          "Can't replay"),
+    ('[Height "2"]\n[Width "2"]\n[LastCell "next"]\n[Player1 "A"]\n[Player2 "B"]\n\n1. a1N a1N',    "Move 1. a1N by B is not legal"),
+    ('[Height "2"]\n[Width "2"]\n[LastCell "maybe"]\n[Player1 "A"]\n[Player2 "B"]',                 "unknown LastCell"),
+    ('[Height "2"]\n[Player1 "A"]\n[Player2 "B"]',                                                  "missing tag"),
+], ids=["missing-file", "illegal-move", "unknown-last-cell", "missing-tag"])
+def test_replay_errors(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, content: str | None, message: str):
+    path = tmp_path / "game.ngn"
+
+    if content is not None:
+        path.write_text(content, encoding="utf-8")
+
+    monkeypatch.setattr(sys, "stdin", FakeStdin())
+
+    with pytest.raises(SystemExit) as exit_info:
+        main(["--replay", str(path)])
+
+    assert message in str(exit_info.value.code)

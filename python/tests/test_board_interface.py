@@ -1,5 +1,5 @@
 """
-Behaviour every `Board` implementation must share. Runs against each class in `BOARDS`.
+Behaviour every `Board` implementation must share. Runs against each class in `BOARDS` (conftest.py).
 """
 from random         import Random
 

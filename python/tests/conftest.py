@@ -17,7 +17,13 @@ if os.getenv("_PYTEST_RAISE", "0") != "0":
         raise excinfo.value
 
 
-# Add new Board implementations here to run every board-agnostic test against them
+# ---------------------------------------------------------------- implementations under test
+#
+# Every implementation the test suite runs against is listed here.
+# Add a new class to its list to run all tests that use the matching fixture against it.
+
+
+# Board implementations, used by the `board_class` fixture
 BOARDS: list[type[Board]] = [LinkedBoard, BitBoard]
 
 

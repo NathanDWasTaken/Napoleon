@@ -1,8 +1,8 @@
-from typing     import Self
+from typing     import Iterable, Self
 
 from .board     import Board
 
-from nagrica.grid.direction     import Direction
+from nagrica.grid.direction     import Direction, N, E, S, W    
 from nagrica.grid.coord         import Coord, CoordLike
 from nagrica.grid.edge          import Edge
 
@@ -28,7 +28,9 @@ class BitBoard(Board):
 
     board_mask:         int
     neighbor_mask:      int
-    
+
+    dir_masks:          dict[Direction, int]
+        
 
     def build_board(self, height: int, width: int):
         # Number of connections (N and E) per row
@@ -38,7 +40,14 @@ class BitBoard(Board):
         self.num_connections    = self.num_conn_per_row * height
 
         self.board_mask         = (1 << self.num_connections) -1
-        self.neighbor_mask      = 0b111 << self.num_conn_per_row + 0b1
+
+        self.dir_masks          = {}
+        self.dir_masks[N]       = 1 << self.num_connections
+        self.dir_masks[E]       =  self.dir_masks[N] << 1
+        self.dir_masks[W]       =  self.dir_masks[N] >> 1
+        self.dir_masks[S]       =  self.dir_masks[N] >> self.num_conn_per_row
+
+        self.neighbor_mask      = self.dir_masks[N] | self.dir_masks[E] | self.dir_masks[W] | self.dir_masks[S]
 
 
         # Set impossible connections to 0:
@@ -53,30 +62,6 @@ class BitBoard(Board):
         assert self._flip_bits(unreachable_east) & self._flip_bits(unreachable_north) == 0
 
         self._connections       = unreachable_east & unreachable_north
-
-
-
-
-
-    def _get_pos(self, coord: CoordLike, direction: Direction):
-        coord       = Coord(*coord)
-        # Relative to North
-        pos         = coord.x * 2 + coord.y * self.num_conn_per_row
-
-        match direction:
-            case Direction.NORTH:
-                pass
-
-            case Direction.WEST:
-                pos -= 1
-                
-            case Direction.EAST:
-                pos += 1
-                
-            case Direction.SOUTH:
-                pos -= self.num_conn_per_row
-
-        return pos
 
 
     # Do and Undo actions
@@ -125,8 +110,41 @@ class BitBoard(Board):
         return new
 
 
+    def separated_region(self, start: CoordLike, end: CoordLike) -> frozenset[Coord]:
+        ...
+
+
+    def _get_pos(self, coord: CoordLike, direction: Direction = Direction.NORTH):
+        coord       = Coord(*coord)
+        # Relative to North
+        pos         = coord.x * 2 + coord.y * self.num_conn_per_row
+
+        match direction:
+            case Direction.NORTH:
+                pass
+
+            case Direction.WEST:
+                pos -= 1
+                
+            case Direction.EAST:
+                pos += 1
+                
+            case Direction.SOUTH:
+                pos -= self.num_conn_per_row
+
+        return pos
+    
+
+
     def _get_bit(self, pos: int):
         return (self._connections >> pos) & 1
 
     def _flip_bits(self, bits: int):
         return bits ^ self.board_mask
+
+
+    def parse_bits(self, bits: int, pad: bool = True):
+        if pad:
+            return f"{bits:0{self.num_connections}b}"[::-1]
+
+        return f"{bits:b}"[::-1]

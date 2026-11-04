@@ -1,5 +1,6 @@
 """
-Capture evaluation on larger, more complex boards.
+Capture resolution on larger, more complex boards: `Board.seperated_region`
+followed by `BasicGameState.calc_capture`, the same way `GameState.apply` does.
 
 Boards are drawn as ASCII art in the same format `render_board` produces.
 Cell labels mark the move under test and the expected result:
@@ -16,22 +17,12 @@ from random         import Random
 
 import pytest
 
-from nagrica.capture.capture         import CaptureEvaluation
-from nagrica.capture.greedy_capture_dfs      import GreedyCaptureDFS
-from nagrica.grid.boards             import Board
-from nagrica.grid.coord              import Coord
-from nagrica.grid.direction          import Direction
-from nagrica.grid.edge               import Edge
-from nagrica.ui.text                 import render_board
-
-
-# Add new CaptureEvaluation implementations here to run every scenario against them
-EVALUATORS = [GreedyCaptureDFS]
-
-
-@pytest.fixture(params=EVALUATORS, ids=lambda cls: cls.__name__)
-def evaluator(request: pytest.FixtureRequest) -> type[CaptureEvaluation]:
-    return request.param
+from nagrica.game                  import BasicGameState
+from nagrica.grid.boards            import Board
+from nagrica.grid.coord             import Coord
+from nagrica.grid.direction         import Direction
+from nagrica.grid.edge              import Edge
+from nagrica.ui.text                import render_board
 
 
 # ---------------------------------------------------------------- helpers
@@ -106,12 +97,25 @@ def component(board: Board, start: Coord) -> set[Coord]:
     return seen
 
 
-def play(board: Board, evaluator: CaptureEvaluation, coord: Coord, direction: Direction) -> frozenset[Coord]:
-    """Place a wall and resolve the capture, the same way `GameState.apply` does."""
-    board.place_wall(Edge(coord, direction))
+def state_for(board: Board) -> BasicGameState:
+    """A game state playing on `board`, for resolving captures with the game's rules."""
+    state       = BasicGameState(board.height, board.width, 2, board_class=type(board))
+    state.board = board
 
-    captured = evaluator.run(coord, coord.to_neighbor(direction)).coords
-    board.capture(captured)
+    return state
+
+
+def resolve(state: BasicGameState, start: Coord, goal: Coord) -> frozenset[Coord]:
+    """The capture after a wall between `start` and `goal` was placed, the same way `GameState.apply` does."""
+    return state.calc_capture(state.board.separated_region(start, goal)).coords
+
+
+def play(state: BasicGameState, coord: Coord, direction: Direction) -> frozenset[Coord]:
+    """Place a wall and apply its capture to the board."""
+    state.board.place_wall(Edge(coord, direction))
+
+    captured = resolve(state, coord, coord.to_neighbor(direction))
+    state.board.capture(captured)
 
     return captured
 
@@ -137,7 +141,7 @@ def test_board_from_ascii_round_trips(board_class: type[Board]):
 # ---------------------------------------------------------------- reachability
 
 
-def test_backtracks_out_of_dead_end(evaluator: type[CaptureEvaluation], board_class: type[Board]):
+def test_backtracks_out_of_dead_end(board_class: type[Board]):
     # Greedy search tries EAST before WEST, walking into the dead end first
     board, labels = board_from_ascii(board_class, """
 +---+---+---+---+---+
@@ -146,12 +150,10 @@ def test_backtracks_out_of_dead_end(evaluator: type[CaptureEvaluation], board_cl
 |         S         |
 +---+---+---+---+---+
 """)
-    result = evaluator(board).run(only(labels["S"]), only(labels["G"]))
-
-    assert not result.split
+    assert resolve(state_for(board), only(labels["S"]), only(labels["G"])) == frozenset()
 
 
-def test_reachable_through_serpentine(evaluator: type[CaptureEvaluation], board_class: type[Board]):
+def test_reachable_through_serpentine(board_class: type[Board]):
     # The only path from S to G winds through every row of the board
     board, labels = board_from_ascii(board_class, """
 +---+---+---+---+---+
@@ -166,9 +168,7 @@ def test_reachable_through_serpentine(evaluator: type[CaptureEvaluation], board_
 | S                 |
 +---+---+---+---+---+
 """)
-    result = evaluator(board).run(only(labels["S"]), only(labels["G"]))
-
-    assert not result.split
+    assert resolve(state_for(board), only(labels["S"]), only(labels["G"])) == frozenset()
 
 
 # ---------------------------------------------------------------- captures
@@ -190,17 +190,17 @@ IRREGULAR_POCKET = """
 
 
 @pytest.mark.parametrize("from_label, to_label", [("S", "G"), ("G", "S")], ids=["from-large-side", "from-small-side"])
-def test_captures_irregular_pocket(evaluator: type[CaptureEvaluation], board_class: type[Board], from_label: str, to_label: str):
+def test_captures_irregular_pocket(board_class: type[Board], from_label: str, to_label: str):
     # Whichever side the search starts on, the smaller region is captured
     board, labels = board_from_ascii(board_class, IRREGULAR_POCKET)
 
-    result = evaluator(board).run(only(labels[from_label]), only(labels[to_label]))
+    captured = resolve(state_for(board), only(labels[from_label]), only(labels[to_label]))
 
-    assert result.coords  == labels["#"]
-    assert result.points    == 7
+    assert captured         == labels["#"]
+    assert len(captured)    == 7
 
 
-def test_captures_large_region_behind_long_wall(evaluator: type[CaptureEvaluation], board_class: type[Board]):
+def test_captures_large_region_behind_long_wall(board_class: type[Board]):
     # The captured side is big (10 of 25) and only closes off with the final wall
     board, labels = board_from_ascii(board_class, """
 +---+---+---+---+---+
@@ -215,10 +215,10 @@ def test_captures_large_region_behind_long_wall(evaluator: type[CaptureEvaluatio
 |                   |
 +---+---+---+---+---+
 """)
-    result = evaluator(board).run(only(labels["S"]), only(labels["G"]))
+    captured = resolve(state_for(board), only(labels["S"]), only(labels["G"]))
 
-    assert result.coords  == labels["#"]
-    assert result.points    == 10
+    assert captured         == labels["#"]
+    assert len(captured)    == 10
 
 
 SHRUNK_PLAY_AREA = """
@@ -235,26 +235,26 @@ SHRUNK_PLAY_AREA = """
 
 
 @pytest.mark.parametrize("from_label, to_label", [("S", "G"), ("G", "S")], ids=["from-large-side", "from-small-side"])
-def test_captures_against_shrunk_play_area(evaluator: type[CaptureEvaluation], board_class: type[Board], from_label: str, to_label: str):
+def test_captures_against_shrunk_play_area(board_class: type[Board], from_label: str, to_label: str):
     # 12 cells are left in play, split 7 vs 5. The 7-cell side is under half of
     # the full board (16), but over half of the play area, so it must stay in play.
     board, labels = board_from_ascii(board_class, SHRUNK_PLAY_AREA)
 
-    result = evaluator(board).run(only(labels[from_label]), only(labels[to_label]))
+    captured = resolve(state_for(board), only(labels[from_label]), only(labels[to_label]))
 
-    assert result.coords  == labels["#"]
-    assert not result.coords & labels["x"]
+    assert captured == labels["#"]
+    assert not captured & labels["x"]
 
 
 # ---------------------------------------------------------------- game sequences
 
 
-def test_captures_compare_against_remaining_play_area(evaluator: type[CaptureEvaluation], board_class: type[Board]):
+def test_captures_compare_against_remaining_play_area(board_class: type[Board]):
     # After the first capture only 12 cells are left. The final split is 7 vs 5:
     # the 7-cell side is under half of the full board (16), but over half of
     # what is still in play, so the 5-cell side must be the one captured.
     board   = board_class(4, 4)
-    dfs     = evaluator(board)
+    state   = state_for(board)
     N, E, S = Direction.NORTH, Direction.EAST, Direction.SOUTH
 
     moves = [
@@ -275,7 +275,7 @@ def test_captures_compare_against_remaining_play_area(evaluator: type[CaptureEva
     ]
 
     for coord, direction, expected in moves:
-        captured = play(board, dfs, coord, direction)
+        captured = play(state, coord, direction)
 
         assert captured == expected, f"move {coord} {direction.name}\n{board}"
 
@@ -284,11 +284,11 @@ def test_captures_compare_against_remaining_play_area(evaluator: type[CaptureEva
 
 @pytest.mark.parametrize("height, width", [(2, 2), (3, 5), (5, 5), (6, 8)])
 @pytest.mark.parametrize("seed", range(10))
-def test_random_games_match_flood_fill(evaluator: type[CaptureEvaluation], board_class: type[Board], height: int, width: int, seed: int):
+def test_random_games_match_flood_fill(board_class: type[Board], height: int, width: int, seed: int):
     # Play random games to the end, checking every move against a brute-force flood fill
     rng     = Random(seed)
     board   = board_class(height, width)
-    dfs     = evaluator(board)
+    state   = state_for(board)
 
     while True:
         legal = [
@@ -307,6 +307,11 @@ def test_random_games_match_flood_fill(evaluator: type[CaptureEvaluation], board
         start_side  = component(board, coord)
         goal_side   = component(board, goal)
 
+        # The board only reports the start side, the game picks the smaller side
+        region = board.separated_region(coord, goal)
+
+        assert region == (set() if goal in start_side else start_side), f"move {coord} {direction.name}\n{board}"
+
         if goal in start_side:
             expected = set()
         elif len(start_side) <= len(goal_side):
@@ -314,7 +319,7 @@ def test_random_games_match_flood_fill(evaluator: type[CaptureEvaluation], board
         else:
             expected = goal_side
 
-        captured = dfs.run(coord, goal).coords
+        captured = state.calc_capture(region).coords
 
         assert captured == expected, f"move {coord} {direction.name}\n{board}"
 

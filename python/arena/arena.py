@@ -6,7 +6,6 @@ from statistics         import mean
 from time               import perf_counter
 
 from nagrica.ai         import SearchAlgorithm
-from nagrica.capture    import CaptureEvaluation, GreedyCaptureDFS
 from nagrica.game       import BasicGameState, CompleteGameState, Match
 from nagrica.grid       import Board, Edge
 from nagrica.grid.boards import LinkedBoard
@@ -151,14 +150,13 @@ def random_opening(
     moves:          int,
     rng:            Random,
     settings:       GameSettings                = GameSettings(),
-    capture_eval:   type[CaptureEvaluation]     = GreedyCaptureDFS,
     board_class:    type[Board]                 = LinkedBoard,
 ) -> tuple[Edge, ...]:
     """
     Up to `moves` random safe moves, so games between deterministic AIs differ.
     Stops early when no safe move is left, rather than handing out cells.
     """
-    state   = BasicGameState(height, width, num_players, capture_eval=capture_eval, board_class=board_class, settings=settings)
+    state   = BasicGameState(height, width, num_players, board_class=board_class, settings=settings)
     opening = []
 
     for _ in range(moves):
@@ -181,10 +179,10 @@ def play_game(
     *,
     height:         int,
     width:          int,
-    settings:       GameSettings    = GameSettings(),
-    board_class:    type[Board]     = LinkedBoard,
-    opening:        Sequence[Edge]  = (),
-    seed:           int             = 0,
+    settings:       GameSettings                = GameSettings(),
+    board_class:    type[Board]                 = LinkedBoard,
+    opening:        Sequence[Edge]              = (),
+    seed:           int                         = 0,
 ) -> GameResult:
     """
     Play a single game. The `opening` moves are played first, in turn order, without the contestants

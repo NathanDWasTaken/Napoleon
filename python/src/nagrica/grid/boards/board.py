@@ -41,6 +41,10 @@ class Board(ABC):
     def connects(self, edge: Edge) -> bool: ...
 
 
+    @abstractmethod
+    def separated_region(self, start: CoordLike, end: CoordLike) -> frozenset[Coord]: ...
+
+
     # Concrete
 
     def capture(self, coords: Iterable[Coord]):
@@ -48,6 +52,7 @@ class Board(ABC):
 
     def release(self, coords: Iterable[Coord]):
         self.in_play  |= set(coords)
+
 
 
     def copy(self: Self) -> Self:
