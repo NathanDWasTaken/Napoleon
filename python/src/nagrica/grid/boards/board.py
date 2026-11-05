@@ -74,7 +74,7 @@ class Board(ABC):
     def is_in_play(self, coord: Coord | tuple[int, int]) -> bool:
         return coord in self.in_play
     
-    def coord_is_valid(self, coord: CoordLike) -> bool:
+    def coord_is_valid(self, coord: Coord) -> bool:
         return (
             0 <= coord[0] < self.width
                     and

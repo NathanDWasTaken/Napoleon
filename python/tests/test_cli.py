@@ -180,6 +180,26 @@ def test_aborted_game_is_recorded_as_unfinished(tmp_path: Path, monkeypatch: pyt
     assert record.moves     == [Edge(Coord(0, 0), Direction.NORTH)]
 
 
+def test_record_refuses_to_replace_an_existing_file(tmp_path: Path, capsys: pytest.CaptureFixture[str]):
+    path = tmp_path / "game.ngn"
+    path.write_text("keep me", encoding="utf-8")
+
+    with pytest.raises(SystemExit):
+        main(["-p", "random", "-p", "random", "--height", "2", "--width", "2", "--record", str(path)])
+
+    assert "already exists" in capsys.readouterr().err
+    assert path.read_text(encoding="utf-8") == "keep me"
+
+
+def test_overwrite_replaces_an_existing_record(tmp_path: Path):
+    path = tmp_path / "game.ngn"
+    path.write_text("old", encoding="utf-8")
+
+    main(["-p", "random", "-p", "random", "--height", "2", "--width", "2", "--record", str(path), "--overwrite"])
+
+    assert parse_record(path.read_text(encoding="utf-8")).result != "*"
+
+
 def test_replay_waits_for_enter_and_can_quit(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
     path = tmp_path / "game.ngn"
     path.write_text('[Height "2"]\n[Width "2"]\n[LastCell "next"]\n[Player1 "A"]\n[Player2 "B"]\n\n1. a1N b1N 2. a1E *', encoding="utf-8")

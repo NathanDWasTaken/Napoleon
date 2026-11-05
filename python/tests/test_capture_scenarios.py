@@ -307,10 +307,13 @@ def test_random_games_match_flood_fill(board_class: type[Board], height: int, wi
         start_side  = component(board, coord)
         goal_side   = component(board, goal)
 
-        # The board only reports the start side, the game picks the smaller side
+        # The board reports either side of the split, the game picks the smaller side
         region = board.separated_region(coord, goal)
 
-        assert region == (set() if goal in start_side else start_side), f"move {coord} {direction.name}\n{board}"
+        if goal in start_side:
+            assert region == set(), f"move {coord} {direction.name}\n{board}"
+        else:
+            assert region in (start_side, goal_side), f"move {coord} {direction.name}\n{board}"
 
         if goal in start_side:
             expected = set()

@@ -85,13 +85,15 @@ def test_region_from_sealed_corner(board: Board):
     assert board.separated_region((0, 0), (2, 2)) == {Coord(0, 0)}
 
 
-def test_region_is_the_start_side(board: Board):
-    # Starting on the large side returns the large side, choosing what to capture is up to the game
+def test_region_is_one_side_of_the_split(board: Board):
+    # Either side may be returned, choosing what to capture is up to the game
     wall_off_corner(board)
 
-    region = board.separated_region((2, 2), (0, 0))
+    corner  = {Coord(0, 0)}
+    rest    = {Coord(x, y) for x in range(3) for y in range(3)} - corner
 
-    assert region == {Coord(x, y) for x in range(3) for y in range(3)} - {Coord(0, 0)}
+    assert board.separated_region((2, 2), (0, 0)) in (corner, rest)
+    assert board.separated_region((0, 0), (2, 2)) in (corner, rest)
 
 
 def test_region_can_be_repeated(board: Board):

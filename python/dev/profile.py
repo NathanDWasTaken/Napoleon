@@ -7,7 +7,6 @@ from nagrica.grid.boards    import LinkedBoard, BitBoard
 
 from nagrica.game           import CompleteGameState
 from nagrica.ai             import Max_N, SimpleEval, MarginEval, RandomMove
-from nagrica.capture        import GreedyCaptureDFS
 from nagrica.settings       import GameSettings
 from nagrica.ui             import render_board
 
@@ -22,7 +21,6 @@ gameState = CompleteGameState(
     height          = 4,
     width           = 4,
     num_players     = 2,
-    capture_eval    = GreedyCaptureDFS,
     board_class     = BitBoard,
     settings        = GameSettings()
 )

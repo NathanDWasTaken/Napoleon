@@ -56,6 +56,11 @@ def parse_args(argv: list[str] | None = None) -> Namespace:
         help    = "save the moves of the game to FILE, also when the game is aborted",
     )
     parser.add_argument(
+        "--overwrite",
+        action  = "store_true",
+        help    = "allow --record to replace a file that already exists",
+    )
+    parser.add_argument(
         "--replay",
         type    = Path,
         metavar = "FILE",
@@ -70,6 +75,10 @@ def parse_args(argv: list[str] | None = None) -> Namespace:
 
     if len(args.players) < 2:
         parser.error("at least 2 players are needed")
+
+    # Fail before playing, rather than after a whole game
+    if args.record and args.record.exists() and not args.overwrite:
+        parser.error(f"{args.record} already exists, pass --overwrite to replace it")
 
     return args
 
@@ -94,7 +103,7 @@ def build_players(specs: list[tuple[str, str | None]]) -> list[Player]:
 
 
 def print_results(match: Match) -> None:
-    print(render_board(match.state.board, axes=True))
+    print(render_board(match.state.board, axes=True, owners=match.state.captured))
     print()
     _print_scores(match.state, [player.name for player in match.players])
 

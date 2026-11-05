@@ -79,7 +79,7 @@ class HumanPlayer(Player):
 
     def make_move(self, gameState: CompleteGameState) -> Edge:
         while True:
-            print(render_board(gameState.board, axes=True))
+            print(render_board(gameState.board, axes=True, owners=gameState.captured))
             print()
             print(f"{self.name} - Place a wall:")
 
