@@ -65,8 +65,6 @@ class LinkedBoard(Board):
 
 
     def place_wall(self, wall: Edge):
-        self.ensure_valid_edge(wall)
-
         cell    = self[wall.coord]
         other   = cell.walk(wall.direction)
          
@@ -75,8 +73,6 @@ class LinkedBoard(Board):
 
 
     def remove_wall(self, wall: Edge):
-        self.ensure_valid_edge(wall)
-
         self._link_cell(wall.coord, wall.direction)
 
 

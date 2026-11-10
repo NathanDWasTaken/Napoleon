@@ -103,11 +103,6 @@ def test_place_wall_leaves_play_area(board: Board):
     assert set(board.in_play) == ALL_COORDS
 
 
-def test_place_wall_off_board_raises(board: Board):
-    with pytest.raises(CoordOutOfBounds):
-        board.place_wall(Edge(Coord(0, 0), S))
-
-
 def test_remove_wall_restores_connection(board: Board):
     board.place_wall(Edge(Coord(0, 0), E))
     board.remove_wall(Edge(Coord(0, 0), E))
@@ -122,11 +117,6 @@ def test_remove_wall_from_other_side(board: Board):
 
     assert board.connects(Edge(Coord(0, 0), E))
     assert board.connects(Edge(Coord(1, 0), W))
-
-
-def test_remove_wall_off_board_raises(board: Board):
-    with pytest.raises(CoordOutOfBounds):
-        board.remove_wall(Edge(Coord(0, 0), S))
 
 
 # ---------------------------------------------------------------- captures

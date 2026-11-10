@@ -1,15 +1,14 @@
 from typing         import Self
-from enum           import Enum
-from dataclasses    import dataclass
+from enum           import IntEnum
 
 from .board         import Board
 
-from nagrica.grid.direction     import Direction, N, E, S, W    
+from nagrica.grid.direction     import Direction 
 from nagrica.grid.coord         import Coord, CoordLike
 from nagrica.grid.edge          import Edge
 
 
-class Axis(Enum):
+class Axis(IntEnum):
     VER = 0
     HOR = 1
 
@@ -38,7 +37,9 @@ class BitBoard(Board):
     # Do and Undo actions
 
     def place_wall(self, wall: Edge):
-        self.ensure_valid_edge(wall)
+        """
+        Assumes GameState has validated edge
+        """
 
         axis, pos = self._calc_bitpos(wall.coord, wall.direction)
 
@@ -47,7 +48,9 @@ class BitBoard(Board):
 
 
     def remove_wall(self, wall: Edge):
-        self.ensure_valid_edge(wall)
+        """
+        Assumes GameState has validated edge
+        """
 
         axis, pos = self._calc_bitpos(wall.coord, wall.direction)
 
@@ -150,17 +153,23 @@ class BitBoard(Board):
         
 
     def _coords_from_set_bits(self, bits: int) -> set[Coord]:
-        bits_str    = f"{bits:b}"
         coords      = set()
 
-        for i, b in enumerate(bits_str[::-1]):
-            if b == "1":
-                coords.add(Coord(
-                    i %  self.width, 
-                    i // self.width
-                ))
-        
+        while True:
+            low     = bits & -bits
+            index   = low.bit_length() - 1
+            coord   = self._coords[index // self.width][index %  self.width]
+
+            coords.add(coord)
+
+            bits   ^= low
+
+            if bits == 0:
+                break
+
+
         return coords
+
 
 
     def _calc_bitpos(self, coord: CoordLike, direction: Direction) -> tuple[Axis, int]:

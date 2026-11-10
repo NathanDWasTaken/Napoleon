@@ -4,7 +4,7 @@ from abc                import abstractmethod, ABC
 
 from nagrica.grid.coord     import Coord, CoordLike
 from nagrica.grid.edge      import Edge
-from nagrica.grid.exceptions    import CoordOutOfBounds
+from nagrica.grid.direction import Direction
 
 
 
@@ -14,11 +14,15 @@ class Board(ABC):
     width:      int
     in_play:    set[Coord]
     
+    _coords:    list[list[Coord]]
+    
     def __init__(self, height: int, width: int) -> None:
         self.height     = height
         self.width      = width
-        self.in_play    = set([Coord(x, y) for x in range(width) for y in range(height)])
 
+        self._coords    = [[Coord(x, y) for x in range(width)] for y in range(height)]
+        self.in_play    = set((c for row in self._coords for c in row))
+        
         self.build_board(height, width)
 
 
@@ -58,10 +62,11 @@ class Board(ABC):
     def copy(self: Self) -> Self:
         new: Self = self.__new__(self.__class__)
 
-        new.height  = self.height
-        new.width   = self.width
+        new.height      = self.height
+        new.width       = self.width
 
-        new.in_play = self.in_play.copy()
+        new.in_play     = self.in_play.copy()
+        new._coords     = self._coords
 
         return new
 
@@ -83,15 +88,27 @@ class Board(ABC):
 
 
     def edge_is_valid(self, edge: Edge):
-        return (
-            self.coord_is_valid(edge.coord)
-                    and
-            self.coord_is_valid(edge.other)
-        )
+        min_width   = 0
+        max_width   = self.width
+        min_height  = 0
+        max_height  = self.height
 
-    def ensure_valid_edge(self, edge: Edge):
-        if not self.edge_is_valid(edge):
-            raise CoordOutOfBounds()
+        match edge.direction:
+            case Direction.NORTH:
+                max_height -= 1
+            case Direction.SOUTH:
+                min_height += 1
+
+            case Direction.EAST:
+                max_width -= 1
+            case Direction.WEST:
+                min_width += 1
+
+        return (
+            min_width  <= edge.coord[0] < max_width
+                    and
+            min_height <= edge.coord[1] < max_height
+        )
 
     def __repr__(self):
         return f"{self.__class__.__name__}(width={self.width}, height={self.height})"
