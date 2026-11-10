@@ -19,7 +19,7 @@ As the game goes on, more and more cells will have been captured, while the play
 - [X] Working AI
 - [ ] Interactive Implemenations:
     - [X] CLI
-    - [ ] Tkinter/Pygame
+    - [X] Tkinter/Pygame (`uv run --extra gui nagrica-gui`)
     - [ ] Website
 
 

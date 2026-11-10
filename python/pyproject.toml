@@ -6,6 +6,12 @@ dependencies = []
 
 [project.scripts]
 nagrica = "nagrica.__main__:main"
+nagrica-gui = "nagrica.ui.gui:main"
+
+[project.optional-dependencies]
+gui = [
+    "pygame-ce>=2.5.8",
+]
 
 [build-system]
 requires = ["uv_build>=0.13.0,<0.14"]
@@ -15,7 +21,7 @@ build-backend = "uv_build"
 dev = ["pytest"]
 
 [tool.uv]
-exclude-newer = "1 week"
+exclude-newer = "2 weeks"
 
 [tool.pytest.ini_options]
 testpaths   = ["tests"]
