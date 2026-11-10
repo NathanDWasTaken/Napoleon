@@ -87,13 +87,24 @@ def test_parse_ai_defaults():
     assert type(maxn.eval_algo.base)    is CurrentScore
 
 
+def test_parse_ai_time_limit_and_unlimited_depth():
+    maxn = parse_ai("maxn:inf:score:2.5")(None)
+
+    assert maxn.max_depth == float("inf")
+    assert maxn.max_time  == 2.5
+    assert parse_ai("maxn:3")(None).max_time == float("inf")
+
+
 @pytest.mark.parametrize("spec", [
     "robot",
     "random:5",
     "maxn:0",
     "maxn:two",
     "maxn:2:score:extra",
-], ids=["unknown-type", "random-options", "zero-depth", "non-number-depth", "too-many-options"])
+    "maxn:2:score:0",
+    "maxn:2:score:fast",
+    "maxn:2:score:1:more",
+], ids=["unknown-type", "random-options", "zero-depth", "non-number-depth", "non-number-time", "zero-time", "word-time", "too-many-options"])
 def test_bad_ais(spec: str):
     with pytest.raises(ArgumentTypeError):
         parse_ai(spec)
@@ -117,6 +128,7 @@ def test_split_name(value: str, expected: tuple[str, str | None]):
     ("maxn",                    "maxn:3:margin(score)"),
     ("maxn:5",                  "maxn:5:margin(score)"),
     ("maxn:2:margin(simple)",   "maxn:2:margin(simple)"),
+    ("maxn:INF:score:2",        "maxn:inf:score:2"),
 ])
 def test_full_ai_spec_fills_in_defaults(spec: str, full: str):
     assert full_ai_spec(spec) == full

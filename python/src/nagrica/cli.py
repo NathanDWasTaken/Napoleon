@@ -42,6 +42,18 @@ def non_negative_int(value: str) -> int:
     return number
 
 
+def positive_number(value: str) -> float:
+    try:
+        number = float(value)
+    except ValueError:
+        raise ArgumentTypeError(f"not a number: '{value}'")
+
+    if not number > 0 or number == float("inf"):
+        raise ArgumentTypeError(f"must be a positive number, got {value}")
+
+    return number
+
+
 def _int(value: str) -> int:
     try:
         return int(value)
@@ -150,15 +162,18 @@ def _random(options: list[str]) -> ParsedAI:
 
 
 def _maxn(options: list[str]) -> ParsedAI:
-    """maxn[:DEPTH[:EVAL]]"""
-    if len(options) > 2:
-        raise ArgumentTypeError("maxn takes at most a depth and an evaluation: maxn[:DEPTH[:EVAL]]")
+    """maxn[:DEPTH[:EVAL[:SECONDS]]], with DEPTH `inf` for no depth limit"""
+    if len(options) > 3:
+        raise ArgumentTypeError("maxn takes at most a depth, an evaluation and a time limit: maxn[:DEPTH[:EVAL[:SECONDS]]]")
 
-    depth       = positive_int(options[0]) if options else DEFAULT_MAX_DEPTH
+    depth_spec  = options[0].lower() if options else str(DEFAULT_MAX_DEPTH)
+    depth       = None if depth_spec == "inf" else positive_int(depth_spec)
     eval_spec   = options[1] if len(options) > 1 else DEFAULT_EVALUATION
     evaluation  = parse_evaluation(eval_spec)
+    seconds     = positive_number(options[2]) if len(options) > 2 else None
+    full_spec   = f"maxn:{depth_spec}:{eval_spec}" + ("" if seconds is None else f":{options[2]}")
 
-    return lambda seed: Max_N(evaluation(), max_depth=depth), f"maxn:{depth}:{eval_spec}"
+    return lambda seed: Max_N(evaluation(), max_depth=depth, max_time=seconds), full_spec
 
 
 # AI types selectable from the CLI, built from the options after the type. Register new AIs here
@@ -168,7 +183,8 @@ AI_TYPES: dict[str, Callable[[list[str]], ParsedAI]] = {
 }
 
 AI_HELP = (
-    f"AIs: random, maxn[:DEPTH[:EVAL]] with EVAL one of {', '.join(EVALUATIONS)}, "
+    f"AIs: random, maxn[:DEPTH[:EVAL[:SECONDS]]] with DEPTH a number or inf (no limit, best with SECONDS), "
+    f"EVAL one of {', '.join(EVALUATIONS)}, "
     f"optionally wrapped in {', '.join(f'{m}(...)' for m in EVAL_MODIFIERS)} "
     f"(default: maxn:{DEFAULT_MAX_DEPTH}:{DEFAULT_EVALUATION}). "
     f"E.g. \"maxn:3:margin(simple)\" (quote the brackets in the shell)"
