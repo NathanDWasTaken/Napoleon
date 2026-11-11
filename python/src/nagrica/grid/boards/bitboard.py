@@ -79,76 +79,43 @@ class BitBoard(Board):
 
 
 
-    # def separated_region(self, start: CoordLike, end: CoordLike) -> frozenset[Coord]:
-    #     # MITM seperated region
-
-    #     frontiers = [
-    #         1 << self._calc_axis_pos(start),
-    #         1 << self._calc_axis_pos(end)
-    #     ]
-
-    #     c = 0
-
-    #     while True:
-    #         i               = c % 2
-    #         frontier_old    = frontiers[i]
-
-    #         # shift north
-    #         frontiers[i] |= self.board_mask & ((self.connections[Axis.VER] & frontiers[i]) << self.width)
-    #         # shift east
-    #         frontiers[i] |= self.board_mask & ((self.connections[Axis.HOR] & frontiers[i]) << 1)
-    #         # shift west
-    #         frontiers[i] |= self.board_mask & (((self.connections[Axis.HOR] << 1) & frontiers[i]) >> 1)
-    #         # shift south
-    #         frontiers[i] |= self.board_mask & (((self.connections[Axis.VER] << self.width) & frontiers[i]) >> self.width)
-
-    #         # If we reach goal, no seperated region
-    #         if frontiers[0] & frontiers[1]:
-    #             return frozenset()
-
-    #         # If value is no longer updated and we have not reached the goal, then the region is seperated
-    #         if frontiers[i] == frontier_old:
-    #             break
-
-    #         c += 1
-
-    #     # Convert Bitmask of visited tiles back to Coords
-    #     visited_coords = self._coords_from_set_bits(frontiers[i])
-
-    #     return frozenset(visited_coords)
-
-
-
     def separated_region(self, start: CoordLike, end: CoordLike) -> frozenset[Coord]:
+        # MITM seperated region
 
-        goal    = 1 << self._calc_axis_pos(end)
-        visited = 1 << self._calc_axis_pos(start)
+        frontiers = [
+            1 << self._calc_axis_pos(start),
+            1 << self._calc_axis_pos(end)
+        ]
+
+        c = 0
 
         while True:
-            visited_old  = visited
+            i               = c % 2
+            frontier_old    = frontiers[i]
 
             # shift north
-            visited |= self.board_mask & ((self.connections[Axis.VER] & visited) << self.width)
+            frontiers[i] |= self.board_mask & ((self.connections[Axis.VER] & frontiers[i]) << self.width)
             # shift east
-            visited |= self.board_mask & ((self.connections[Axis.HOR] & visited) << 1)
+            frontiers[i] |= self.board_mask & ((self.connections[Axis.HOR] & frontiers[i]) << 1)
             # shift west
-            visited |= self.board_mask & (((self.connections[Axis.HOR] << 1) & visited) >> 1)
+            frontiers[i] |= self.board_mask & (((self.connections[Axis.HOR] << 1) & frontiers[i]) >> 1)
             # shift south
-            visited |= self.board_mask & (((self.connections[Axis.VER] << self.width) & visited) >> self.width)
+            frontiers[i] |= self.board_mask & (((self.connections[Axis.VER] << self.width) & frontiers[i]) >> self.width)
 
             # If we reach goal, no seperated region
-            if visited & goal == goal:
+            if frontiers[0] & frontiers[1]:
                 return frozenset()
 
             # If value is no longer updated and we have not reached the goal, then the region is seperated
-            if visited == visited_old:
+            if frontiers[i] == frontier_old:
                 break
 
+            c += 1
+
         # Convert Bitmask of visited tiles back to Coords
-        visited_coords = self._coords_from_set_bits(visited)
+        visited_coords = self._coords_from_set_bits(frontiers[i])
 
         return frozenset(visited_coords)
-
 
         
 
