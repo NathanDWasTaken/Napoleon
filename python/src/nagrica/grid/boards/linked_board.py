@@ -142,8 +142,7 @@ class LinkedBoard(Board):
         return False
 
 
-    def separated_region(self, start: CoordLike, end: CoordLike) -> frozenset[Coord]:
-        start, end                  = Coord(*start), Coord(*end)
+    def separated_region(self, start: Coord, end: Coord) -> frozenset[Coord]:
         self.visited: set[Coord]    = set()
         self._goal                  = end
 

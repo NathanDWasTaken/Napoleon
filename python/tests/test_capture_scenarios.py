@@ -154,19 +154,19 @@ def test_backtracks_out_of_dead_end(board_class: type[Board]):
 
 
 def test_reachable_through_serpentine(board_class: type[Board]):
-    # The only path from S to G winds through every row of the board
+    # S and G are neighbours, but the only path between them winds around the whole border
     board, labels = board_from_ascii(board_class, """
-+---+---+---+---+---+
-| G                 |
-+   +---+---+---+---+
-|                   |
-+---+---+---+---+   +
-|                   |
-+   +---+---+---+---+
-|                   |
-+---+---+---+---+   +
-| S                 |
-+---+---+---+---+---+
++---+---+---+---+
+| S             |
++---+---+---+   +
+| G |       |   |
++   +   +   +   +
+|   |   |   |   |
++   +   +   +   +
+|   |   |   |   |
++   +   +   +   +
+|       |       |
++---+---+---+---+
 """)
     assert resolve(state_for(board), only(labels["S"]), only(labels["G"])) == frozenset()
 

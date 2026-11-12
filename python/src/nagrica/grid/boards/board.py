@@ -46,7 +46,7 @@ class Board(ABC):
 
 
     @abstractmethod
-    def separated_region(self, start: CoordLike, end: CoordLike) -> frozenset[Coord]: ...
+    def separated_region(self, start: Coord, end: Coord) -> frozenset[Coord]: ...
 
 
     # Concrete

@@ -78,8 +78,65 @@ class BitBoard(Board):
         return new
 
 
+    def _wall_is_connected(self, coord1: Coord, coord2: Coord) -> bool:
+        """
+        Checks whether the wall to be connected has adjacent walls on both sides.
+        In practice this does not save any time (and actually costs time), 
+        since the cases where there is no adjacent wall are the same cases where floodfill can reach in few iterations
+        """
 
-    def separated_region(self, start: CoordLike, end: CoordLike) -> frozenset[Coord]:
+        pos1    = self._calc_axis_pos(coord1)
+        pos2    = self._calc_axis_pos(coord2)
+
+        walls_n = self.board_mask ^ self.connections[Axis.VER]
+        walls_e = self.board_mask ^ self.connections[Axis.HOR]
+
+        direction = coord1.direction_to(coord2)
+
+        match direction:
+            case (Direction.NORTH | Direction.SOUTH):
+                bot_pos = pos1 if direction == Direction.NORTH else pos2
+
+                left = bool(
+                       (coord1.x == 0 and coord2.x == 0)    # On the border
+                    or (walls_e >> (pos1 - 1   ))   & 1     # left, down
+                    or (walls_e >> (pos2 - 1   ))   & 1     # left, up
+                    or (walls_n >> (bot_pos - 1))   & 1     # left, left
+                )
+
+                right = bool(
+                       (coord1.x == self.width - 1 or coord2.x == self.width - 1)
+                    or (walls_e >> (pos1))          & 1     # right down (assuming pos1 is bottom)
+                    or (walls_e >> (pos2))          & 1     # right, up
+                    or (walls_n >> (bot_pos + 1))   & 1     # right, right
+                )
+
+                return left and right
+
+            case (Direction.EAST | Direction.WEST):
+                left_pos    = pos1 if direction == Direction.EAST else pos2
+
+                up = bool(
+                       (coord1.y == self.height - 1 and coord2.y == self.height - 1)
+                    or (walls_n >> (pos1))                  & 1     # up, left
+                    or (walls_n >> (pos2))                  & 1     # up, right
+                    or (walls_e >> (left_pos + self.width)) & 1     # up, up
+                )
+
+                down = bool(
+                       (coord1.y == 0 and coord2.y == 0)
+                    or (walls_n >> (pos1 - self.width))     & 1     # down, left
+                    or (walls_n >> (pos2 - self.width))     & 1     # down, right
+                    or (walls_e >> (left_pos - self.width)) & 1     # down, down
+                )
+
+                return up and down
+
+
+    def separated_region(self, start: Coord, end: Coord) -> frozenset[Coord]:
+        # if not self._wall_is_connected(start, end):
+        #     return frozenset()
+
         # MITM seperated region
 
         frontiers = [
